@@ -19,11 +19,11 @@ vis7 = '../../DATA/2011.0.00511.S/sg_ouss_id/group_ouss_id/member_ouss_id/calibr
 #mstransform(vis5, outputvis=vis5_combined, combinespws=True, spw='0,1')
 #vis6_combined = '/users/jotter/DATA/2011.0.00511.S/vis6_combined.ms'
 #mstransform(vis6, outputvis=vis6_combined, combinespws=True, spw='0,1')
-vis7_combined_02 = '/users/jotter/DATA/2011.0.00511.S/vis7_combined_02.ms'
-mstransform(vis7, outputvis=vis7_combined_02, combinespws=True, spw='0,2')
+#vis7_combined_02 = '/users/jotter/DATA/2011.0.00511.S/vis7_combined_02.ms'
+#mstransform(vis7, outputvis=vis7_combined_02, combinespws=True, spw='0,2')
 
 b6_vis = '/users/jotter/DATA/2011.0.00511.S/Band6_vis_combined.ms'
-concat(vis=[vis1,vis3,vis4], outputvis=b6_vis, freqtol='1MHz')
+#concat(vis=[vis1,vis3,vis4], concatvis=b6_vis, freqtol='1MHz')
 
 b7_vis = '/users/jotter/DATA/2011.0.00511.S/Band7_vis_combined.ms'
-concat(vis=[vis2,vis5_combined, vis6_combined], outputvis=b7_vis, freqtol='1MHz')
+concat(vis=[vis2,vis5, vis6], concatvis=b7_vis, freqtol='1MHz')

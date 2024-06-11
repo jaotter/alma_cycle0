@@ -15,7 +15,7 @@ spw_dict =  {'9':['220.398GHz', 0.783, '13CO21', 180, '0.8mJy', None], '5':['86.
              '0,1':['347.330GHz', 0.440, 'SiO87', 180, '1.8mJy', 10], '5,7':['86.847GHz', 1.913, 'SiO21', 180, '1.4mJy', 14]}
 
 
-spw_list = ['0,1', '5,7']
+spw_list = ['0,1', '5,7', '2', '3', '4', '6', '8', '9', '10']
 contsub = True
 
 
@@ -23,12 +23,12 @@ for spw in spw_list:
     print('CREATING CLEAN CLUBE FOR SPW '+spw)
     
     if contsub == True:
-        contvis = '/users/jotter/DATA/2011.0.00511.S/spw'+spw+'_uvcontsub_vis_calib.ms'
+        contvis = '/users/jotter/DATA/2011.0.00511.S/spw'+spw+'_uvcontsub_vis_6-10.ms'
         fullvis = contvis
         if len(spw.split(',')) > 1:
             spw1, spw2 = spw.split(',')
-            contvis1 = '/users/jotter/DATA/2011.0.00511.S/spw'+spw1+'_uvcontsub_vis_calib.ms'
-            contvis2 = '/users/jotter/DATA/2011.0.00511.S/spw'+spw2+'_uvcontsub_vis_calib.ms'
+            contvis1 = '/users/jotter/DATA/2011.0.00511.S/spw'+spw1+'_uvcontsub_vis_6-10.ms'
+            contvis2 = '/users/jotter/DATA/2011.0.00511.S/spw'+spw2+'_uvcontsub_vis_6-10.ms'
             fullvis = [contvis1, contvis2]
         print('USING CONTINUUM SUBTRACTED MS')
         print(fullvis)
@@ -60,10 +60,10 @@ for spw in spw_list:
         cleanmask = 'circle[['+xpos+'pix,'+ypos+'pix], '+radius+'pix]'
 
     if contsub == True:
-        imgname = '/users/jotter/alma_cycle0/cube_reduction/contsub_clean/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh+'_contsub'
-        fitsname = '/users/jotter/alma_cycle0/fitsimages/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh+'_contsub'
+        imgname = '/users/jotter/DATA/cube_reduction/contsub_clean_6-10/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh+'_contsub_6-10'
+        fitsname = '/users/jotter/alma_cycle0/fitsimages/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh+'_contsub_6-10'
     else:
-        imgname = '/users/jotter/alma_cycle0/cube_reduction/nocontsub_clean/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh
+        imgname = '/users/jotter/DATA/cube_reduction/nocontsub_clean/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh
         fitsname = '/users/jotter/alma_cycle0/fitsimages/N1266_spw'+spw+'_r'+str(robust_value)+'_'+flux_thresh
 
     tclean(vis=fullvis,
