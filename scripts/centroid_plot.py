@@ -7,6 +7,10 @@ from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 from astropy.nddata.utils import Cutout2D
 from matplotlib.gridspec import GridSpec
+from matplotlib.lines import Line2D
+from matplotlib.patches import Ellipse
+from astropy.convolution import Gaussian1DKernel
+from radio_beam import Beam
 
 import glob
 import numpy as np
@@ -102,6 +106,73 @@ def plot_centroids(cube_kms, centroid_list, bin_centers, bin_widths, line_name):
 	plt.savefig(f'../plots/{line_name}centroid_plot.png')
 
 
+def highvel_contours(cube_kms, line_name, vel_offset=400*u.km/u.s, bin_width=200*u.km/u.s):
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+	
+	#taking velocity ranges from Alatalo11
+	#vel_lower_blue, vel_upper_blue = (-575, -275) * u.km/u.s #-vel_offset - bin_width/2, -vel_offset + bin_width/2
+	#vel_lower_red, vel_upper_red = (175, 475) * u.km/u.s #vel_offset - bin_width/2, vel_offset + bin_width/2
+
+	vel_lower_blue, vel_upper_blue = (-400, -175) * u.km/u.s #-vel_offset - bin_width/2, -vel_offset + bin_width/2
+	vel_lower_red, vel_upper_red = (125, 400) * u.km/u.s #vel_offset - bin_width/2, vel_offset + bin_width/2
+	vel_lower_cent, vel_upper_cent = (-50, 50) * u.km/u.s
+
+	channel_slab_bl = cube_kms.spectral_slab(vel_lower_blue, vel_upper_blue)
+	channel_slab_red = cube_kms.spectral_slab(vel_lower_red, vel_upper_red)
+	channel_slab_cent = cube_kms.spectral_slab(vel_lower_cent, vel_upper_cent)
+
+	channel_mom0_bl = channel_slab_bl.moment(order=0)
+	channel_mom0_red = channel_slab_red.moment(order=0)
+	channel_mom0_cent = channel_slab_cent.moment(order=0)
+
+	pix_cent = np.array(channel_mom0_bl.shape)/2
+	mom0_blue = Cutout2D(channel_mom0_bl, pix_cent, size=10*u.arcsecond, wcs=cube_kms.wcs.celestial).data
+	mom0_red = Cutout2D(channel_mom0_red, pix_cent, size=10*u.arcsecond, wcs=cube_kms.wcs.celestial).data
+	mom0_cent = Cutout2D(channel_mom0_cent, pix_cent, size=10*u.arcsecond, wcs=cube_kms.wcs.celestial).data
+
+	cent_cont_lvls = np.nanmax(mom0_cent) * np.array([0.7, 0.9, 0.95, 0.99])
+	#red_cont_lvls = np.nanmax(mom0_red) * np.array([0.5, 0.7, 0.9, 0.95, 0.99])
+	#blue_cont_lvls = np.nanmax(mom0_blue) * np.array([0.5, 0.7, 0.9, 0.95, 0.99])
+
+	blue_cont_lvls = [3, 4, 5, 6] * u.Jy * u.km / u.s
+	red_cont_lvls = blue_cont_lvls
+	#cent_cont_lvls = [6.4, 8.6, 10.8, 13, 15.2, 17.4] * u.Jy *u.km / u.s
+
+	print(cent_cont_lvls, red_cont_lvls, blue_cont_lvls)
+
+	print(np.nanstd(mom0_cent), np.nanstd(mom0_blue), np.nanstd(mom0_red))
+
+	ax.contour(mom0_blue, colors='blue', levels=blue_cont_lvls)
+	ax.contour(mom0_red, colors='red', levels=red_cont_lvls)
+	ax.contour(mom0_cent, colors='k', levels=cent_cont_lvls)
+
+	labels = [rf'{vel_lower_blue.value}km/s : {vel_upper_blue.value}km/s', f'{vel_lower_red.value}km/s : {vel_upper_red.value}km/s', f'{vel_lower_cent.value}km/s : {vel_upper_cent.value}km/s']
+
+	custom_lines = [Line2D([0], [0], color='blue', lw=2),
+					Line2D([0], [0], color='red', lw=2),
+					Line2D([0], [0], color='k', lw=2)]
+
+
+	ax.legend(custom_lines, labels)
+
+	ax.set_title(line_name)
+
+	#ax.imshow(channel_mom0.value, origin='lower')
+	#ax.text(0.1, 0.9, rf'{int(vel_center.value)} $\pm$ {bin_widths[i]/2}', transform=ax.transAxes, color='white')
+
+	beam = cube_kms.beam
+	pix_scale = cube_kms.wcs.celestial.proj_plane_pixel_scales()
+
+	bmwidth = (beam.minor/pix_scale[0]).value
+	bmheight = (beam.major/pix_scale[0]).value
+	bmpa = beam.pa.value
+	bmpatch = Ellipse((10,10), bmwidth, bmheight, bmpa, facecolor='lime',edgecolor='k', alpha=0.5)
+	ax.add_patch(bmpatch)
+	
+	plt.savefig(f'../plots/highv_contours_{line_name}.png')
+
+
 #spw = '9'
 #line_name = '13CO(2-1)'
 
@@ -109,12 +180,12 @@ def plot_centroids(cube_kms, centroid_list, bin_centers, bin_widths, line_name):
 #line_name = 'HCN(1-0)'
 #cube_path = glob.glob(f'/Users/jotter/highres_PSBs/alma_cycle0/fitsimages/no_contsub/N1266_spw{spw}_r0.5_*.pbcor.fits')[0]
 
-#line_name = 'CO(2-1)'
-#cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co21.fits'
+line_name = 'CO(2-1)'
+cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co21.fits'
 #line_name = 'CO(1-0)'
 #cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co.fits'
-line_name = 'CO(3-2)'
-cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co32.fits'
+#line_name = 'CO(3-2)'
+#cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co32.fits'
 
 
 cube = SpectralCube.read(cube_path)
@@ -122,9 +193,15 @@ rest_freq = line_dict[line_name] * u.GHz
 line_freq = rest_freq / (1+z)
 cube_vel = cube.with_spectral_unit(u.km/u.s, rest_value=line_freq, velocity_convention='optical')
 
-bin_centers = [-575,-500,-450,-350,-300,-250,-200,-150,150,200,250,300,350,450,500,575] * u.km/u.s
-bin_widths = [350,300,300,200,200,200,200,200,200,200,200,200,200,300,300,350] * u.km/u.s
+#kern = Gaussian1DKernel(5)
+#cube_vel = cube_vel.spectral_smooth(kern)
 
-cent_list = channel_centroids(cube_vel, bin_centers, bin_widths, centroid_method='quad')
-plot_centroids(cube_vel, cent_list, bin_centers, bin_widths, line_name=line_name, )
+
+highvel_contours(cube_vel, line_name)
+
+#bin_centers = [-575,-500,-450,-350,-300,-250,-200,-150,150,200,250,300,350,450,500,575] * u.km/u.s
+#bin_widths = [500,400,400,300,300,300,200,100,100,100,100,200,300,300,400,400,500] * u.km/u.s
+
+#cent_list = channel_centroids(cube_vel, bin_centers, bin_widths, centroid_method='quad')
+#plot_centroids(cube_vel, cent_list, bin_centers, bin_widths, line_name=line_name, )
 

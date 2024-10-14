@@ -35,7 +35,8 @@ line_dict = {'SiO(2-1)':86.84696, 'SiO(5-4)':217.10498, 'SiO(6-5)':260.51802, 'S
 				'CH3OH 5(2,3)-5(-1,5)':347.507451, 'CH3OH 14(-1,14)-13(1,12)':346.783, 'CH3OH 2(1,1)-2(0,2)-+':304.208,
 				'CH3OH 1(1,0)-1(0,1)-+':303.367, 'CH3OH 3(3,0)-4(-2,3)':260.968, 'NH2CHO 12(1,11)-11(1,10)':261.327, 'HC17O+(3-2)':261.165,
 				'HC15N(3-2)':258.157, 'SO 6(6)-5(5)':258.256, 'H13CN(3-2)':259.012, 'H2S 2(2,0)-2(1,1)':216.71, 'HN13C(3-2)':261.263,
-				'CH3OH 16(1) -15(3) E1':217.525, 'CH3OH 39(-3) -39(3) E2':217.526028, 'CH3OH 6(1,5)-7(2,6)--':217.299
+				'CH3OH 16(1) -15(3) E1':217.525, 'CH3OH 39(-3) -39(3) E2':217.526028, 'CH3OH 6(1,5)-7(2,6)--':217.299, 'CO(1-0)':115.271,
+				'CO(2-1)':230.538, 'CO(3-2)':345.796
 				}
 spw_dict = {'0':'5~25', '1':'', '2':'5~30;100~110',
 			'3':'35~75', '4':'65~95; 145~170', '5':'',
@@ -45,10 +46,17 @@ spw_dict = {'0':'5~25', '1':'', '2':'5~30;100~110',
 def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, contsub=False, return_type='freq'):
 	#pix_center - center of aperture in pixel coordinates, if None use galaxy center
 
-	if contsub == True:
-		cube_path = glob.glob(f'/Users/jotter/highres_PSBs/alma_cycle0/fitsimages/contsub_6-12/N1266_spw{spw}_r0.5_*_contsub*.pbcor.fits')[0]
+	if line_name == 'CO(1-0)':
+		cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co.fits'
+	elif line_name == 'CO(2-1)':
+		cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co21.fits'
+	elif line_name == 'CO(3-2)':
+		cube_path = '/Users/jotter/highres_PSBs/ngc1266_data/co32.fits'
 	else:
-		cube_path = glob.glob(f'/Users/jotter/highres_PSBs/alma_cycle0/fitsimages/no_contsub/N1266_spw{spw}_r0.5_*.pbcor.fits')[0]
+		if contsub == True:
+			cube_path = glob.glob(f'/Users/jotter/highres_PSBs/alma_cycle0/fitsimages/contsub_6-12/N1266_spw{spw}_r0.5_*_contsub*.pbcor.fits')[0]
+		else:
+			cube_path = glob.glob(f'/Users/jotter/highres_PSBs/alma_cycle0/fitsimages/no_contsub/N1266_spw{spw}_r0.5_*.pbcor.fits')[0]
 
 	print('Spectrum from '+cube_path)
 
@@ -95,11 +103,15 @@ def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, c
 	mask_cube = cube.subcube_from_regions([ap])
 
 	spectrum = mask_cube.sum(axis=(1,2))
-	freq = cube.spectral_axis.to(u.GHz)
 
-	line_freq = line_dict[line_name] * u.GHz
-	cube_vel = mask_cube.with_spectral_unit(u.km/u.s, rest_value=line_freq, velocity_convention='optical')
-	vel = cube_vel.spectral_axis.to(u.km/u.s)
+	if spw != 'na':
+		freq = cube.spectral_axis.to(u.GHz)
+
+		line_freq = line_dict[line_name] * u.GHz
+		cube_vel = mask_cube.with_spectral_unit(u.km/u.s, rest_value=line_freq, velocity_convention='optical')
+		vel = cube_vel.spectral_axis.to(u.km/u.s)
+	else:
+		vel = cube.spectral_axis.to(u.km/u.s)
 
 	if return_type == 'freq':
 		return spectrum, freq
@@ -117,12 +129,13 @@ def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None):
 	#upper_band_kms = [300,400]
 
 	#for HCN(1-0)
-	#lower_band_kms = [-600,-400]
-	#upper_band_kms = [400,600]
+	lower_band_kms = [-600,-400]
+	upper_band_kms = [400,600]
 
 	#for H13CN(3-2)
-	lower_band_kms = [-495, -350]
-	upper_band_kms = [350,700]
+	#lower_band_kms = [-495, -350]
+	#upper_band_kms = [350,700]
+
 
 	lower_ind1 = np.where(line_vel > lower_band_kms[0])
 	lower_ind2 = np.where(line_vel < lower_band_kms[1])
@@ -206,6 +219,7 @@ def fit_line(spectrum_fit, wave_vel_fit, spectrum_err_fit, cont_params, line_nam
 
 
 	contsub_spec = spectrum_fit - (cont_fit)
+
 	#spectrum_err_fit = None
 
 	print(f'fitting {line_name}')
@@ -472,7 +486,33 @@ def measure_fluxes():
 	tab.write('/Users/jotter/highres_PSBs/alma_cycle0/line_fluxes.csv', format='csv', overwrite=True)
 
 
-measure_fluxes()
+#measure_fluxes()
+
+
+spw = 'na'
+line_name = 'CO(1-0)'
+spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=10*u.arcsecond)
+fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1, cont_deg=0)
+bic_1comp = fit_dict['bic']
+fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2, cont_deg=0)
+bic_2comp = fit_dict2['bic']
+
+delta_bic = bic_1comp - bic_2comp
+print(line_name)
+print(f'BIC 1comp - BIC 2comp = {delta_bic}')
+
+line_freq = line_dict[line_name] * u.GHz
+line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
+popt, pcov, cont = fit_dict2[line_name]
+comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
+comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
+tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
+
+print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
+print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
+print(f'Total Flux {tot_flux} +- {tot_flux_err}')
+
+print(comp1_flux + comp2_flux, tot_flux)
 
 
 '''spw = '9'
