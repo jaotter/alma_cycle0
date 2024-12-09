@@ -138,20 +138,21 @@ def plot_line_profiles(HCN_spectrum, HCN_vel, HCN_params, CO13_params, CO_lines)
 	ax.set_xlim(1600,2700)
 
 	plt.legend(fontsize=14)
-	plt.savefig('../plots/line_profiles.png')
+	plt.savefig('../plots/line_profiles.pdf', bbox_inches='tight', dpi=300)
+	plt.savefig('../plots/line_profiles.png', bbox_inches='tight')
 
 
 fit_table = Table.read('../twocomp_fluxes_r2.csv', format='csv')
+
+spectrum, vel = extract_HCN_spectrum()
+#cont_params, residuals_clip_std, cont_serr, mask_ind = fit_continuum(spectrum, vel, 'HCN(1-0)', degree=1)
+#spectrum = spectrum - (vel * cont_params[1] + cont_params[0])
 
 HCN_row = np.where(fit_table['line'] == 'HCN(1-0)')[0][0]
 HCN_params = [fit_table['comp1_vel'][HCN_row], fit_table['comp1_amp'][HCN_row]/(fit_table['comp1_amp'][HCN_row]+fit_table['comp2_amp'][HCN_row]), fit_table['comp1_sigma'][HCN_row],
 			fit_table['comp2_vel'][HCN_row], fit_table['comp2_amp'][HCN_row]/(fit_table['comp1_amp'][HCN_row]+fit_table['comp2_amp'][HCN_row]), fit_table['comp2_sigma'][HCN_row]]
 
-spectrum, vel = extract_HCN_spectrum()
-#cont_params, residuals_clip_std, cont_serr, mask_ind = fit_continuum(spectrum, vel, 'HCN(1-0)', degree=1)
-#spectrum = spectrum - (vel * cont_params[1] + cont_params[0])
 spectrum = spectrum / (fit_table['comp1_amp'][HCN_row] + fit_table['comp2_amp'][HCN_row])
-
 
 CO13_row = np.where(fit_table['line'] == '13CO(2-1)')[0][0]
 CO13_params = [fit_table['comp1_vel'][CO13_row], fit_table['comp1_amp'][CO13_row]/(fit_table['comp1_amp'][CO13_row]+fit_table['comp2_amp'][CO13_row]), fit_table['comp1_sigma'][CO13_row],
