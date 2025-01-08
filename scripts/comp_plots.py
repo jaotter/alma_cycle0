@@ -15,7 +15,7 @@ def convert_T_iram(T_SD):
 
 gso_table = Table.read('../tables/gaosolomon04_tab3_Edit_tab4_edit.csv')
 #this edited version removed galaxies also in the GOALs sample
-#this INCLUDES 2 starbursts in the star-forming sample
+#this also removed 1 starburst from the table, so the non lirgs should just be star-forming gals (NGC 1022)
 
 gso_HCN = np.log10(gso_table['S_HCN_delV'])
 gso_CO = np.log10(gso_table['S_CO_delV'])
@@ -109,42 +109,132 @@ e_n1266_CO = n1266_tab['e_total_flux'][0]/(n1266_tab['total_flux'][0] * np.log(1
 
 #### plotting
 
-fig = plt.figure(figsize=(8,8))
+def HCN_CO_plot():
 
-plt.errorbar(n1266_HCN, n1266_CO, xerr=e_n1266_HCN, yerr=e_n1266_CO, marker='X', color='tab:green', mec='k', label='NGC 1266', markersize=10)
+	fig = plt.figure(figsize=(8,8))
 
-plt.errorbar(sfg_HCN[sfg_noulim_CO_HCN], sfg_CO[sfg_noulim_CO_HCN], xerr=sfg_e_HCN[sfg_noulim_CO_HCN], yerr=sfg_e_CO[sfg_noulim_CO_HCN], marker='*', color='tab:blue', label='Star-forming', linestyle='')
-plt.errorbar(lirg_HCN[lirg_noulim_CO_HCN], lirg_CO[lirg_noulim_CO_HCN], xerr=lirg_e_HCN[lirg_noulim_CO_HCN], yerr=lirg_e_CO[lirg_noulim_CO_HCN], marker='D', color='tab:cyan', label='LIRGs (Gao 04)', linestyle='')
-plt.errorbar(etg_HCN[etg_noulim], etg_CO[etg_noulim], xerr=etg_e_HCN[etg_noulim], yerr=etg_e_CO[etg_noulim], marker='o', color='tab:red', label='Early-type', linestyle='')
-plt.errorbar(psb_HCN[psb_noulim], psb_CO[psb_noulim], xerr=psb_e_HCN[psb_noulim], yerr=psb_e_CO[psb_noulim], marker='s', color='tab:purple', label='PSB', linestyle='')
-plt.errorbar(gls_HCN[gls_noulim], gls_CO[gls_noulim], xerr=gls_e_HCN[gls_noulim], yerr=gls_e_CO[gls_noulim],marker='p', color='tab:pink', label='LIRGs (GOALS)', linestyle='')
+	plt.errorbar(n1266_HCN, n1266_CO, xerr=e_n1266_HCN, yerr=e_n1266_CO, marker='X', color='tab:green', mec='k', label='NGC 1266', markersize=10)
 
-#upper limits
-for ind in sfg_ulim_HCN:
-	plt.arrow(sfg_HCN[ind], sfg_CO[ind], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
-for ind2 in sfg_llim_HCN:
-	plt.arrow(sfg_HCN[ind2], sfg_CO[ind2], dx=0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
-for ind3 in sfg_llim_CO:
-	plt.arrow(sfg_HCN[ind3], sfg_CO[ind3], dx=0, dy=0.1, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
-for ind4 in etg_ulim_HCN:
-	plt.arrow(etg_HCN[ind4], sfg_CO[ind4], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:red')
-for ind5 in psb_ulim_HCN:
-	plt.arrow(psb_HCN[ind5], psb_CO[ind5], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:purple')
-for ind6 in gls_ulim_HCN:
-	plt.arrow(gls_HCN[ind6], gls_CO[ind6], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:pink')
-for ind7 in lirg_ulim_HCN:
-	plt.arrow(lirg_HCN[ind7], lirg_CO[ind7], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
-for ind8, in lirg_llim_HCN:
-	plt.arrow(lirg_HCN[ind8], lirg_CO[ind8], dx=0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
-for ind9, in lirg_llim_CO:
-	plt.arrow(lirg_HCN[ind9], lirg_CO[ind9], dx=0, dy=0.1, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
+	plt.errorbar(sfg_HCN[sfg_noulim_CO_HCN], sfg_CO[sfg_noulim_CO_HCN], xerr=sfg_e_HCN[sfg_noulim_CO_HCN], yerr=sfg_e_CO[sfg_noulim_CO_HCN], marker='*', color='tab:blue', label='Star-forming', linestyle='')
+	plt.errorbar(lirg_HCN[lirg_noulim_CO_HCN], lirg_CO[lirg_noulim_CO_HCN], xerr=lirg_e_HCN[lirg_noulim_CO_HCN], yerr=lirg_e_CO[lirg_noulim_CO_HCN], marker='D', color='tab:cyan', label='LIRG (Gao 04)', linestyle='')
+	plt.errorbar(etg_HCN[etg_noulim], etg_CO[etg_noulim], xerr=etg_e_HCN[etg_noulim], yerr=etg_e_CO[etg_noulim], marker='o', color='tab:red', label='Early-type', linestyle='')
+	plt.errorbar(psb_HCN[psb_noulim], psb_CO[psb_noulim], xerr=psb_e_HCN[psb_noulim], yerr=psb_e_CO[psb_noulim], marker='s', color='tab:purple', label='PSB', linestyle='')
+	plt.errorbar(gls_HCN[gls_noulim], gls_CO[gls_noulim], xerr=gls_e_HCN[gls_noulim], yerr=gls_e_CO[gls_noulim],marker='p', color='tab:pink', label='LIRG (GOALS)', linestyle='')
+
+	plt.plot(sfg_HCN[sfg_ulim_HCN], sfg_CO[sfg_ulim_HCN], marker='*', color='tab:blue', linestyle='')
+	plt.plot(sfg_HCN[sfg_llim_HCN], sfg_CO[sfg_llim_HCN], marker='*', color='tab:blue', linestyle='')
+	plt.plot(sfg_HCN[sfg_llim_CO], sfg_CO[sfg_llim_CO], marker='*', color='tab:blue', linestyle='')
+	plt.plot(lirg_HCN[lirg_ulim_HCN], lirg_CO[lirg_ulim_HCN], marker='D', color='tab:cyan', linestyle='')
+	plt.plot(lirg_HCN[lirg_llim_HCN], lirg_CO[lirg_llim_HCN], marker='D', color='tab:cyan', linestyle='')
+	plt.plot(lirg_HCN[lirg_llim_CO], lirg_CO[lirg_llim_CO], marker='D', color='tab:cyan', linestyle='')
+
+	plt.plot(etg_HCN[etg_ulim_HCN], etg_CO[etg_ulim_HCN], marker='o', color='tab:red', linestyle='')
+	plt.plot(psb_HCN[psb_ulim_HCN], psb_CO[psb_ulim_HCN], marker='s', color='tab:purple', linestyle='')
+	plt.plot(gls_HCN[gls_ulim_HCN], gls_CO[gls_ulim_HCN], marker='p', color='tab:pink', linestyle='')
 
 
-plt.xlabel('log HCN(1-0) Flux (Jy km/s)')
-plt.ylabel('log CO(1-0) Flux (Jy km/s)')
+	#upper limits
+	for ind in sfg_ulim_HCN:
+		plt.arrow(sfg_HCN[ind], sfg_CO[ind], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
+	for ind2 in sfg_llim_HCN:
+		plt.arrow(sfg_HCN[ind2], sfg_CO[ind2], dx=0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
+	for ind3 in sfg_llim_CO:
+		plt.arrow(sfg_HCN[ind3], sfg_CO[ind3], dx=0, dy=0.1, width=0.005, head_width=0.02, head_length=0.02, color='tab:blue')
+	for ind4 in etg_ulim_HCN:
+		plt.arrow(etg_HCN[ind4], etg_CO[ind4], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:red')
+	for ind5 in psb_ulim_HCN:
+		plt.arrow(psb_HCN[ind5], psb_CO[ind5], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:purple')
+	for ind6 in gls_ulim_HCN:
+		plt.arrow(gls_HCN[ind6], gls_CO[ind6], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:pink')
+	for ind7 in lirg_ulim_HCN:
+		plt.arrow(lirg_HCN[ind7], lirg_CO[ind7], dx=-0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
+	for ind8, in lirg_llim_HCN:
+		plt.arrow(lirg_HCN[ind8], lirg_CO[ind8], dx=0.1, dy=0, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
+	for ind9, in lirg_llim_CO:
+		plt.arrow(lirg_HCN[ind9], lirg_CO[ind9], dx=0, dy=0.1, width=0.005, head_width=0.02, head_length=0.02, color='tab:teal')
 
-#plt.loglog()
 
-plt.legend()
+	plt.xlabel('log HCN(1-0) Flux (Jy km/s)', fontsize=16)
+	plt.ylabel('log CO(1-0) Flux (Jy km/s)', fontsize=16)
 
-plt.savefig('../plots/HCN_CO_comparison.png', dpi=300)
+	#plt.loglog()
+
+	plt.legend()
+
+	plt.savefig('../plots/HCN_CO_comparison.png', dpi=300)
+
+def HCN_CO_ratio_histogram():
+
+	fig, (ax0,ax1) = plt.subplots(2, 1, figsize=(8,8), sharex=True, gridspec_kw={'hspace':0.03})
+
+	ngc1266_ratio = n1266_HCN-n1266_CO
+ 
+	sfg_ratio = sfg_HCN[sfg_noulim_CO_HCN]-sfg_CO[sfg_noulim_CO_HCN]
+	sfg_ratio_ulim = sfg_HCN[np.concatenate((sfg_ulim_HCN, sfg_llim_CO))]-sfg_CO[np.concatenate((sfg_ulim_HCN, sfg_llim_CO))]
+	sfg_ratio_llim = sfg_HCN[sfg_llim_HCN]-sfg_CO[sfg_llim_HCN]
+
+	lirg_ratio = lirg_HCN[lirg_noulim_CO_HCN]-lirg_CO[lirg_noulim_CO_HCN]
+	lirg_ratio_ulim = lirg_HCN[np.concatenate((lirg_ulim_HCN, lirg_llim_CO))]-lirg_CO[np.concatenate((lirg_ulim_HCN, lirg_llim_CO))]
+	lirg_ratio_llim = lirg_HCN[lirg_llim_HCN]-lirg_CO[lirg_llim_HCN]
+
+	etg_ratio = etg_HCN[etg_noulim]-etg_CO[etg_noulim]
+	etg_ratio_ulim = etg_HCN[etg_ulim_HCN]-etg_CO[etg_ulim_HCN]
+
+	psb_ratio = psb_HCN[psb_noulim]-psb_CO[psb_noulim]
+	psb_ratio_ulim = psb_HCN[psb_ulim_HCN]-psb_CO[psb_ulim_HCN]
+
+	gls_ratio = gls_HCN[gls_noulim]-gls_CO[gls_noulim]
+	gls_ratio_ulim = gls_HCN[gls_ulim_HCN]-gls_CO[gls_ulim_HCN]
+
+	all_ratio = np.concatenate((sfg_ratio, lirg_ratio, etg_ratio, psb_ratio, gls_ratio))
+	all_hist, all_bins = np.histogram(all_ratio, bins='auto')
+
+	hatches = [None,"/"]
+	linestyles = ['-', 'dashed']
+	
+	ax0.hist([sfg_ratio, sfg_ratio_ulim, sfg_ratio_llim], all_bins, color=['tab:blue','tab:blue','tab:blue'], edgecolor=['navy','navy','navy'], alpha=0.25, label='Star-forming', histtype='barstacked', hatch=[None,"/", "\\"])
+	ax0.hist([sfg_ratio, sfg_ratio_ulim, sfg_ratio_llim], all_bins, edgecolor=['tab:blue','tab:blue','tab:blue'], histtype='step', stacked=True, linewidth=4, linestyle=['-', 'dashed', 'dotted'])
+	#ax0.hist(sfg_ratio_ulim, all_bins, edgecolor='tab:blue', histtype='step', linewidth=3, linestyle='dashed', hatch='//')
+	#ax0.hist(sfg_ratio_llim, all_bins, edgecolor='tab:blue', histtype='step', linewidth=3, linestyle='dashed', hatch='\\')
+
+	ax0.hist([lirg_ratio, lirg_ratio_ulim], all_bins, color=['tab:cyan', 'tab:cyan'], edgecolor=['darkcyan', 'darkcyan'], alpha=0.25, label='LIRG (Gao 04)', histtype='barstacked', hatch=hatches)
+	ax0.hist([lirg_ratio, lirg_ratio_ulim], all_bins, color=['tab:cyan', 'tab:cyan'], histtype='step', stacked=True, linewidth=3, linestyle=linestyles)
+
+
+	#ax0.hist([gls_ratio,gls_ratio_ulim], all_bins, color=['tab:pink', 'k'], alpha=0.25, label='LIRG (GOALS)', histtype='bar', stacked=True, hatch=hatches)
+	ax0.hist([gls_ratio,gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], edgecolor=['purple', 'purple'], alpha=0.25, label='LIRG (GOALS)', histtype='barstacked', hatch=hatches)
+	#ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], alpha=0.25, label='LIRG (GOALS)')
+	ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, edgecolor=['tab:pink', 'tab:pink'], histtype='step', stacked=True, linewidth=2, linestyle=linestyles)
+	#ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], histtype='step', stacked=True, linewidth=3, linestyle=linestyles, hatch=hatches)
+	#ax0.hist(gls_ratio_ulim, all_bins, edgecolor='tab:pink', histtype='step', linewidth=3, linestyle='dashed', hatch='///')
+
+	
+	ax1.hist([psb_ratio, psb_ratio_ulim], all_bins, color=['tab:purple','tab:purple'], edgecolor=['purple','purple'], alpha=0.25, label='PSB', histtype='barstacked', hatch=hatches)
+	ax1.hist([psb_ratio, psb_ratio_ulim], all_bins, edgecolor=['tab:purple','tab:purple'], histtype='step', stacked=True, linewidth=4, linestyle=linestyles)
+	#ax1.hist(psb_ratio_ulim, all_bins, edgecolor='tab:purple', histtype='step', linewidth=3, linestyle='dashed', hatch='//')
+
+	ax1.hist([etg_ratio, etg_ratio_ulim], all_bins, color=['tab:red','tab:red'], edgecolor=['maroon','maroon'], alpha=0.25, label='Early Type', histtype='barstacked', hatch=hatches)
+	ax1.hist([etg_ratio, etg_ratio_ulim], all_bins, edgecolor=['tab:red','tab:red'], histtype='step', stacked=True, linewidth=2, linestyle=linestyles)
+	#ax1.hist(etg_ratio_ulim, all_bins, edgecolor='tab:red', histtype='step', linewidth=3, linestyle='dashed', hatch='/')
+	
+	ax0.axvline(ngc1266_ratio, color='tab:green', label='NGC 1266', linewidth=3)
+	ax1.axvline(ngc1266_ratio, color='tab:green', label='NGC 1266', linewidth=3)
+
+	ax1.set_xlabel('log HCN/CO ratio', fontsize=16)
+	ax0.set_ylabel('Number', fontsize=16)
+	ax1.set_ylabel('Number', fontsize=16)
+
+	ax0.tick_params(axis='y', labelsize=14)
+	ax0.tick_params(axis='x', labelsize=0)
+	ax0.set_yticks(np.arange(0,17,2))
+	ax1.tick_params(axis='both', labelsize=14)
+
+	ax0.legend(fontsize=14)
+	ax1.legend(fontsize=14)
+
+	plt.savefig('../plots/HCN_CO_ratio_histogram.png')
+
+HCN_CO_ratio_histogram()
+
+
+
