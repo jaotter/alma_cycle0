@@ -107,7 +107,51 @@ e_n1266_HCN = n1266_tab['e_total_flux'][4]/(n1266_tab['total_flux'][4] * np.log(
 n1266_CO = np.log10(n1266_tab['total_flux'][0])
 e_n1266_CO = n1266_tab['e_total_flux'][0]/(n1266_tab['total_flux'][0] * np.log(10))
 
+print(convert_T_iram(34.7))
+print(convert_T_iram(2.83))
+
+
+#krips 2010 collated lit table
+krips_tab = Table.read('../tables/krips_2010.csv')
+
+
+CO_1312_raw = krips_tab['13CO_12CO(1-0)']
+e_CO_1312_raw = krips_tab['e_13CO_12CO(1-0)']
+HCN_13CO_raw = krips_tab['HCN_13CO']
+e_HCN_13CO_raw = krips_tab['e_HCN_13CO']
+
+CO_1312_ind = []
+CO_1312_ulim_ind = []
+HCN_13CO_ind = []
+HCN_13CO_llim_ind = []
+HCN_13CO_ulim_ind = []
+
+for i in range(len(krips_tab)):
+	if CO_1312_raw[i].replace('.','',1).isdigit() == True:
+		CO_1312_ind.append(i)
+	elif CO_1312_raw[i][0] == '<':
+		CO_1312_ulim_ind.append(i)
+
+	if HCN_13CO_raw[i].replace('.','',1).isdigit() == True:
+		HCN_13CO_ind.append(i)
+	elif HCN_13CO_raw[i][0] == '<':
+		HCN_13CO_ulim_ind.append(i)
+	elif HCN_13CO_raw[i][0] == '>':
+		HCN_13CO_llim_ind.append(i)
+
+both_ind = np.intersect1d(CO_1312_ind, HCN_13CO_ind)
+
+
+
+
 #### plotting
+
+def CO_ratio_HCN_plot():
+	### make plot of 13/12 CO ratio and HCN/13CO ratio
+	# get the correct indices
+	# convert the arrays to floats, then plot appropriately
+
+	print(len(both_ind))
 
 def HCN_CO_plot():
 
@@ -234,7 +278,7 @@ def HCN_CO_ratio_histogram():
 
 	plt.savefig('../plots/HCN_CO_ratio_histogram.png')
 
-HCN_CO_ratio_histogram()
+#HCN_CO_ratio_histogram()
 
 
 
