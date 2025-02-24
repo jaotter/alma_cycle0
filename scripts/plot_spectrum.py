@@ -108,7 +108,12 @@ def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, c
 	print(ap_radius_pix, center_pixcoord)
 	mask_cube = cube.subcube_from_regions([ap])
 
-	spectrum = mask_cube.sum(axis=(1,2))
+	spectrum_pbeam = mask_cube.sum(axis=(1,2))
+
+	pixscale = utils.proj_plane_pixel_area(cube.wcs.celestial)**0.5 * u.deg
+	ppbeam = (cube.beam.sr/(pixscale**2)).decompose().value
+	
+	spectrum = spectrum_pbeam / ppbeam
 
 	if spw != 'na':
 		freq = cube.spectral_axis.to(u.GHz)
@@ -124,6 +129,37 @@ def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, c
 	if return_type == 'vel':
 		print(f'spec velocity range: {vel[0] - galv, vel[-1] - galv}')
 		return spectrum, vel
+
+
+
+def generate_spectrum(peak_snr, amp_ratio):
+
+	vel_arr = np.arange(-2000,2000,10) #kms
+
+	amp1 = 1
+	amp2 = amp_ratio
+	wid1 = 40 #km/s
+	wid2 = 145 #km/s
+	vel1 = 0
+	vel2 = 0
+
+	gaussian_params = [vel1, amp1, wid1, vel2, amp2, wid2]
+	gauss_spec = gauss_sum(vel_arr, *gaussian_params)
+
+	total_flux = np.sqrt(2 * np.pi) * ((wid1 * amp1) + (wid2 * amp2))
+
+	sigma_lw = 20
+
+	noise_sigma = np.max(gauss_spec) / peak_snr
+	noise_arr = np.random.normal(loc=0, scale=noise_sigma, size=vel_arr.shape)
+
+	print(noise_sigma)
+	print(np.max(gauss_spec))
+
+
+	final_spec = gauss_spec + noise_arr
+
+	return final_spec, vel_arr
 
 
 def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None):
@@ -307,20 +343,20 @@ def compute_flux(popt, pcov, line_wave, ncomp=2):
 	#take fit parameter output and compute flux and error
 
 	width1 = popt[2] * u.km/u.s
-	amp1 = popt[1] * u.mJy#/beam
+	amp1 = popt[1] * u.Jy#/beam
 	wave_width1 = ((width1 / const.c) * line_wave).to(u.angstrom).value
 
-	amp1_err = np.sqrt(pcov[1,1]) *u.mJy #wrong with unit conversion
+	amp1_err = np.sqrt(pcov[1,1]) * u.Jy #wrong with unit conversion
 	width1_err = np.sqrt(pcov[2,2]) * u.km/u.s
 	wave_width1_err = ((width1_err / const.c) * line_wave).to(u.angstrom).value
 
 
 	if ncomp == 2:
 		width2 = popt[5] * u.km/u.s
-		amp2 = popt[4] * u.mJy #/beam
+		amp2 = popt[4] * u.Jy #/beam
 		wave_width2 = ((width2 / const.c) * line_wave).to(u.angstrom).value
 
-		amp2_err = np.sqrt(pcov[4,4]) * u.mJy
+		amp2_err = np.sqrt(pcov[4,4]) * u.Jy
 		width2_err = np.sqrt(pcov[5,5]) * u.km/u.s
 		wave_width2_err = ((width2_err / const.c) * line_wave).to(u.angstrom).value
 
@@ -399,12 +435,27 @@ def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constr
 
 	return_dict['bic'] = bic
 
+	#calculate flux from summing channels instead of fitting
+	chan_range = [galv.value-300, galv.value+300]
+	ind1 = np.where(velocity.value > chan_range[0])[0][0]
+	ind2 = np.where(velocity.value < chan_range[1])[0][-1]
+
+	sum_spectrum = spectrum[ind1:ind2]
+	sum_flux = np.nansum(sum_spectrum) * np.average(velocity[1:]-velocity[:-1])
+
+	#sum_flux_contsub = np.nansum(spectrum.value[ind1:ind2] - (velocity.value[ind1:ind2] * cont_params[1] + cont_params[0]))
+
+	return_dict['sum_flux'] = sum_flux
+
 	sigma_lw = 20
 	err_s = cont_std * np.sqrt(np.pi*2)*sigma_lw
 	tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=fit_ncomp)
 	snr = tot_flux / err_s
 
-	#return_dict['peak_snr'] = peak_snr
+	peak_signal = np.max(gauss_sum(velocity.value, *popt))
+	peak_snr = peak_signal / cont_std
+
+	return_dict['peak_snr'] = peak_snr
 	return_dict['snr'] = snr
 
 	return return_dict
@@ -479,6 +530,8 @@ def measure_fluxes(constrain=True, robust='2'):
 	flux_comp1_list = []
 	flux_comp2_list = []
 	flux_tot_list = []
+	sum_flux_list = []
+
 	e_flux_comp1_list = []
 	e_flux_comp2_list = []
 	e_flux_tot_list = []
@@ -499,6 +552,7 @@ def measure_fluxes(constrain=True, robust='2'):
 	e_comp2_amp_list = []
 
 	snr_list = []
+	peak_snr_list = []
 	delta_bic_list = []
 
 	for i in np.arange(len(line_list)):
@@ -535,6 +589,8 @@ def measure_fluxes(constrain=True, robust='2'):
 		flux_comp1_list.append(comp1_flux)
 		flux_comp2_list.append(comp2_flux)
 		flux_tot_list.append(tot_flux)
+		sum_flux_list.append(fit_dict2['sum_flux'])
+
 		e_flux_comp1_list.append(comp1_flux_err)
 		e_flux_comp2_list.append(comp2_flux_err)
 		e_flux_tot_list.append(tot_flux_err)
@@ -555,13 +611,14 @@ def measure_fluxes(constrain=True, robust='2'):
 		e_comp2_amp_list.append(np.sqrt(pcov[4,4]))
 
 		snr_list.append(fit_dict2['snr'])
+		peak_snr_list.append(fit_dict2['peak_snr'])
 		delta_bic_list.append(delta_bic)
 
-	tab = Table(names=('line', 'spw', 'comp1_flux', 'comp2_flux', 'total_flux', 'e_comp1_flux', 'e_comp2_flux', 'e_total_flux', 'comp1_sigma', 'comp2_sigma', 'e_comp1_sigma', 'e_comp2_sigma',
-						'comp1_vel', 'comp2_vel', 'e_comp1_vel', 'e_comp2_vel', 'comp1_amp', 'comp2_amp', 'e_comp1_amp', 'e_comp2_amp', 'delta_bic', 'snr'),
-				data=(line_list, spw_list, flux_comp1_list, flux_comp2_list, flux_tot_list, e_flux_comp1_list, e_flux_comp2_list, e_flux_tot_list, comp1_sigma_list, comp2_sigma_list,
+	tab = Table(names=('line', 'spw', 'comp1_flux', 'comp2_flux', 'total_flux', 'sum_flux', 'e_comp1_flux', 'e_comp2_flux', 'e_total_flux', 'comp1_sigma', 'comp2_sigma', 'e_comp1_sigma', 'e_comp2_sigma',
+						'comp1_vel', 'comp2_vel', 'e_comp1_vel', 'e_comp2_vel', 'comp1_amp', 'comp2_amp', 'e_comp1_amp', 'e_comp2_amp', 'delta_bic', 'peak_snr', 'snr'),
+				data=(line_list, spw_list, flux_comp1_list, flux_comp2_list, flux_tot_list, sum_flux_list, e_flux_comp1_list, e_flux_comp2_list, e_flux_tot_list, comp1_sigma_list, comp2_sigma_list,
 				 		e_comp1_sigma_list, e_comp2_sigma_list, comp1_vel_list, comp2_vel_list, e_comp1_vel_list, e_comp2_vel_list, comp1_amp_list, comp2_amp_list, e_comp1_amp_list, e_comp2_amp_list, 
-				 		delta_bic_list, snr_list))
+				 		delta_bic_list, peak_snr_list, snr_list))
 	tab.write(f'/Users/jotter/highres_PSBs/alma_cycle0/tables/twocomp_fluxes{"_constr" if constrain == True else ""}_r{robust}.csv', format='csv', overwrite=True)
 
 
@@ -661,164 +718,74 @@ def spectrum_fit_plot(fit_table_path, constr_fit_path, robust='2'):
 	plt.savefig('../plots/HCN_13CO_fit_spectra.pdf', dpi=300, bbox_inches='tight')
 	plt.savefig('../plots/HCN_13CO_fit_spectra.png', bbox_inches='tight')
 
+def twocomp_upperlimit(snr):
+
+	#amp_ratio_list = [1, 0.5, 0.3, 0.1, 0.075, 0.05, 0.03, 0.02, 0.015, 00.01, 0.009, 0.008, 0.007, 0.006, 0.005, 1e-5]
+	amp_ratio_list = np.logspace(-4, 0, 100)
+
+	final_input_amp = []
+	recov_amp_ratio = []
+
+	for i in range(100):
+		for amp in amp_ratio_list:
+			amp = np.abs(amp + np.random.normal(loc=0, scale=amp*0.01))
+
+			line_name = f'ampratio_{amp}'
+
+			gen_spec, vel_list = generate_spectrum(snr, amp)
+
+			cont_params, cont_std, cont_serr, mask_ind = fit_continuum(gen_spec, vel_list, line_name, degree=-1, mask_ind=None)
+			cont_std_err = np.repeat(cont_std, len(gen_spec))
+
+			peak_flux = np.nanmax(gen_spec)
+			peak_ind = np.where(gen_spec == peak_flux)[0][0]
+			peak_vel = vel_list[peak_ind]
+
+			start = [peak_vel, peak_flux, 50, peak_vel, (peak_flux)*0.25, 150]
+			bounds = ([-500, peak_flux * 0.01, 20, -500, 0, 145], [500, peak_flux*3, 600, 500, peak_flux*10, 151])
+		
+			popt, pcov = fit_line(gen_spec, vel_list, cont_std_err, cont_params, line_name, start, bounds, ncomp=2, plot=False, mask_ind=None,
+									constrain=True, robust='X')
+
+			meas_amp_ratio = popt[4] / popt[1]
+
+			recov_amp_ratio.append(meas_amp_ratio)
+			final_input_amp.append(amp)
+
+	recov_amp_ratio = np.array(recov_amp_ratio)
+	final_input_amp = np.array(final_input_amp)
+
+	np.save(f'../tables/recov_amp_ratio_snr{snr}.npy', recov_amp_ratio)
+	np.save(f'../tables/final_input_amp_snr{snr}.npy', final_input_amp)
+
+	fig = plt.figure(figsize=(6,6))
+
+	plt.plot(final_input_amp, recov_amp_ratio, linestyle='', marker='o')
+
+	plt.ylim(0.0001, 1.05)
+	plt.xlim(0.0001, 1.05)
+	plt.loglog()
+	plt.ylabel('Recovered amplitude ratio', fontsize=14)
+	plt.xlabel('True amplitude ratio', fontsize=14)
+
+	plt.title(f'SNR = {snr}', fontsize=14)
+
+	plt.plot([0.0001, 1.05],[0.0001, 1.05], marker='', color='k')
+
+	plt.axhline(0.00488, linestyle='dashed', color='k') #measured amplitude ratio for 13CO(2-1)
+
+	plt.savefig(f'../plots/simulated_amp_recovered_snr{snr}.png')
+
+
+
+twocomp_upperlimit(snr=88)
 
 #measure_fluxes(constrain=False, robust='2')
 #measure_fluxes(constrain=True, robust='2')
 #measure_fluxes(constrain=False, robust='0.5')
 #measure_fluxes(constrain=True, robust='0.5')
 
-spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
+#spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
 
-'''spw = 'na'
-line_name = 'CO(1-0)'
-spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=10*u.arcsecond)
-#fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1, cont_deg=0)
-#bic_1comp = fit_dict['bic']
-fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2, cont_deg=-1, constrain=True)
-bic_2comp = fit_dict2['bic']
-
-#delta_bic = bic_1comp - bic_2comp
-#print(line_name)
-#print(f'BIC 1comp - BIC 2comp = {delta_bic}')
-
-line_freq = line_dict[line_name] * u.GHz
-line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-popt, pcov, cont = fit_dict2[line_name]
-comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-print(f'Total Flux {tot_flux} +- {tot_flux_err}')'''
-
-
-
-
-#spw = '9'
-#line_name = '13CO(2-1)'
-#spw = '6'
-#line_name = 'HCN(1-0)'
-#spectrum, vel = extract_spectrum(spw, line_name, contsub=True, return_type='vel', ap_radius=3*u.arcsecond, robust='2')
-#fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1)
-#bic_1comp = fit_dict['bic']
-#fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2, constrain=True)
-#bic_2comp = fit_dict2['bic']
-
-#delta_bic = bic_1comp - bic_2comp
-#print(line_name)
-#print(f'BIC 1comp - BIC 2comp = {delta_bic}')
-
-#line_freq = line_dict[line_name] * u.GHz
-#line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-#popt, pcov, cont = fit_dict2[line_name]
-#comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-#comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-#tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-#print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-#print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-#print(f'Total Flux {tot_flux} +- {tot_flux_err}')
-
-#print(comp1_flux + comp2_flux, tot_flux)
-
-'''spw = '6'
-line_name = 'HCN(1-0)'
-spectrum, vel = extract_spectrum(spw, line_name, contsub=True, return_type='vel', ap_radius=3*u.arcsecond, robust=0.5)
-fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1)
-bic_1comp = fit_dict['bic']
-fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2)
-bic_2comp = fit_dict2['bic']
-
-delta_bic = bic_1comp - bic_2comp
-print(line_name)
-print(f'BIC 1comp - BIC 2comp = {delta_bic}')
-
-line_freq = line_dict[line_name] * u.GHz
-line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-popt, pcov, cont = fit_dict2[line_name]
-comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-print(f'Total Flux {tot_flux} +- {tot_flux_err}')
-
-print(comp1_flux + comp2_flux, tot_flux)'''
-
-'''spw='4'
-#spw = '3'
-line_name = 'H13CN(3-2)'
-#line_name = 'HN13C(3-2)'
-spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=3*u.arcsecond, robust=0.5)
-fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1)
-bic_1comp = fit_dict['bic']
-fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2)
-bic_2comp = fit_dict2['bic']
-
-delta_bic = bic_1comp - bic_2comp
-print(line_name)
-print(f'BIC 1comp - BIC 2comp = {delta_bic}')
-
-line_freq = line_dict[line_name] * u.GHz
-line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-popt, pcov, cont = fit_dict2[line_name]
-comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-print(f'Total Flux {tot_flux} +- {tot_flux_err}')
-
-print(comp1_flux + comp2_flux, tot_flux)'''
-
-
-## constraining width of broad component to be consistent with HCN and 12CO from Alatalo11
-
-'''spw = '9'
-line_name = '13CO(2-1)'
-spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=4*u.arcsecond)
-fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2, constrain=True)
-
-line_freq = line_dict[line_name] * u.GHz
-line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-popt, pcov, cont = fit_dict2[line_name]
-comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-print(f'Total Flux {tot_flux} +- {tot_flux_err}')
-
-print(f'Component 1 velocity {popt[1]}')
-print(f'Component 2 velocity {popt[4]}')
-'''
-
-#newz = np.exp(((galv + popt[1]*u.km/u.s) / const.c).decompose()) - 1 
-#print(f'new z {newz}')
-
-
-'''spw = '4'
-line_name = 'H13CN(3-2)'
-spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=4*u.arcsecond)
-fit_dict2 = fit_spectrum(spectrum, vel, line_name, fit_ncomp=2, constrain=True)
-
-line_freq = line_dict[line_name] * u.GHz
-line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
-popt, pcov, cont = fit_dict2[line_name]
-comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
-comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
-tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=2)
-
-print(f'Component 1 Flux {comp1_flux} +- {comp1_flux_err}, fraction {comp1_flux/tot_flux}')
-print(f'Component 2 Flux {comp2_flux} +- {comp2_flux_err}, fraction {comp2_flux/tot_flux}')
-print(f'Total Flux {tot_flux} +- {tot_flux_err}')
-
-print(f'Component 1 velocity {popt[1]}')
-print(f'Component 2 velocity {popt[4]}')
-print(f'recessional velocity {galv.value + popt[1]}')'''
 
 
