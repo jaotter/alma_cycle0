@@ -1,13 +1,15 @@
 from astropy.table import Table
 
+import astropy.constants as const
+import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
 
+from astropy.cosmology import FlatLambdaCDM
 
+cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 def convert_T_iram(T_mb, epoch='2008', line='CO(1-0)'):
-	#Sv = 3514 * T_SD / (v_a_iram * D_iram**2) -- OLD
-	#Sv = fconv * T_mb
 	#T_mb is main beam temperature, NOT antenna temp
 
 	if epoch == '2008' and  line == 'CO(1-0)':
@@ -37,6 +39,13 @@ def convert_T_iram(T_mb, epoch='2008', line='CO(1-0)'):
 	Sv = fconv * T_mb
 
 	return Sv
+
+
+
+HCN_freq = 88.631 * u.GHz
+n1266_z = 0.007214
+n1266_dist = cosmo.luminosity_distance(n1266_z)
+theta_n1266_HCN = (3.98*u.arcsecond).to(u.radian) #beam size in radians
 
 #gao and solomon SFGs
 
@@ -204,6 +213,20 @@ e_n1266_13CO21_out = n1266_tab['e_comp2_flux'][3]
 amp_ratio_ulim = 0.02 #figured out from plot_spectrum.py -> twocomp_upperlimit(snr=88)
 n1266_13CO21_out_ulim = n1266_13CO21_sys * amp_ratio_ulim
 
+print(n1266_HCN)
+
+#following Gao 2004, in Jy km/s pc^2
+ngc1266_HCN_L = n1266_HCN * (n1266_dist.to(u.pc))**2 * np.pi / (4 * np.log(2)) * (1+n1266_z)**3 * theta_n1266_HCN**2
+ngc1266_LFIR = (5.2e43 * u.erg/u.s).to(u.Lsun)
+
+#IRAS fluxes in Jy
+n1266_F12 = 0.25
+n1266_F25 = 1.2
+n1266_F60 = 13.13
+n1266_F100 = 16.89
+
+ngc1266_LIR = ((1.8e-14 * (13.48*n1266_F12 + 5.16*n1266_F25 + 2.58*n1266_F60 + n1266_F100))*u.W/u.m**2 * 4 * np.pi * n1266_dist**2).to(u.Lsun)
+
 #from Crocker12
 #12CO(2-1)/13CO(2-1)
 #n1266_R21 = 24.8
@@ -219,9 +242,6 @@ e_n1266_13CO_sys = n1266_13CO_sys * np.sqrt((e_n1266_13CO21_sys/n1266_13CO21_sys
 n1266_13CO_out = n1266_13CO21_out * n1266_13CO_2110
 e_n1266_13CO_out = n1266_13CO_out * np.sqrt((e_n1266_13CO21_out/n1266_13CO21_out)**2 + (e_n1266_13CO_2110/n1266_13CO_2110)**2)
 n1266_13CO_out_ulim = n1266_13CO21_out_ulim * n1266_13CO_2110
-
-print(e_n1266_13CO_sys/n1266_13CO_sys)
-print(e_n1266_HCN_sys/n1266_HCN_sys)
 
 print('my measured fluxes')
 print(f'HCN: {n1266_HCN}, 13CO(2-1): {n1266_13CO}')
@@ -270,6 +290,30 @@ e_L1157_1312_CO = L1157_1312_CO * np.sqrt((e_L1157_12CO/L1157_12CO)**2 + (e_L115
 
 L1157_HCN_12CO = L1157_HCN / L1157_12CO
 e_L1157_HCN_12CO = L1157_HCN_12CO * np.sqrt((e_L1157_HCN/L1157_HCN)**2 + (e_L1157_12CO/L1157_12CO)**2)
+
+
+##
+#loading HCN LIR data
+gb11 = Table.read('../tables/garciaburillo_11.csv', data_start=2)
+#fluxes are in antenna temp, to get to Tmb, Tmb = Ta * (Feff/Beff) = 1.22 * Ta for HCN
+#to get to Jy, S/Tmb = 4.95 Jy/K
+gb11_dist = gb11['d'] * u.Mpc
+gb11_z = gb11['z']
+thetaMB = (28 * u.arcsecond).to(u.radian).value
+
+gb11_IHCN_Tmb = gb11['IHCN'] * 1.22 #K km/s
+gb11_IHCN_Jy = gb11_IHCN_Tmb * 4.95 * u.Jy * u.km / u.s
+gb11_LHCN = (gb11_IHCN_Jy * gb11_dist**2 * np.pi / (4 * np.log(2)) * thetaMB**2 * (1+gb11_z)**3).to(u.Jy * u.km / u.s * u.pc**2)
+#gb11_LHCN_K = (gb11_IHCN_Tmb * u.K * u.km / u.s* gb11_dist**2 * np.pi / (4 * np.log(2)) * thetaMB**2).to(u.K * u.km / u.s * u.pc**2)
+
+#LIR data for gao and solomon 2004
+gso_LIR = gso_table['LIR'] * 1e10 #Lsun 
+gso_LHCN_K = gso_table['LHCN'] * 1e8 #K km/s pc^2
+
+gso_LHCN_Jy = gso_LHCN_K * 4.8 #Jy/K
+
+
+
 
 #### plotting
 
@@ -334,6 +378,11 @@ def CO_ratio_HCN_plot():
 	plt.errorbar(n1266_1312CO_out_ulim, n1266_HCN_13CO_out_llim, xerr=n1266_1312CO_out_ulim*0.15, yerr=n1266_HCN_13CO_out_llim*0.15, lolims=True, xuplims=True, linestyle='', marker='s', color='tab:orange', label='NGC 1266 (outflow)', markersize=10, mec='k')
 	plt.errorbar(n1266_1312CO_sys, n1266_HCN_13CO_sys, xerr=e_n1266_1312CO_sys, yerr=e_n1266_HCN_13CO_sys, linestyle='', marker='D', color='tab:orange', label='NGC 1266 (systemic)', markersize=10, mec='k')
 
+	print(f'outflow R13: {n1266_1312CO_out_ulim}')
+	print(f'sys R13: {n1266_1312CO_sys} pm {e_n1266_1312CO_sys}')
+
+	print(f'outflow HCN/13: {n1266_HCN_13CO_out_llim}')
+	print(f'sys HCN/13: {n1266_HCN_13CO_sys} pm {e_n1266_HCN_13CO_sys}')
 
 	#using Crocker12 NGC 1266 values
 	n1266_1312CO = 	etg_13co_12co[3]
@@ -442,6 +491,33 @@ def HCN_12CO_ratio_histogram():
 
 	plt.savefig('../plots/HCN_CO_ratio_histogram.pdf')
 
+
+
+def HCN_LIR_plot():
+
+	fig = plt.figure(figsize=(8,8))
+
+	#GOALS
+	plt.plot(gso_LIR[gso_lirg], gso_LHCN_Jy[gso_lirg], linestyle='', marker='d', color='tab:blue', label='LIRGs')
+	plt.plot(gso_LIR[gso_sfg], gso_LHCN_Jy[gso_sfg], linestyle='', marker='o', color='tab:red', label='SFGs')
+
+	plt.plot(ngc1266_LIR, ngc1266_HCN_L, linestyle='', marker='H', color='tab:orange', label='NGC 1266', markersize=10, mec='k')
+
+
+	plt.ylabel(r'L$_{HCN}$ (Jy km s$^{-1}$ pc$^2$)', fontsize=16)
+	plt.xlabel(r'L$_{IR}$ (L$_\odot$)', fontsize=16)
+
+	plt.tick_params(labelsize=12)
+
+	plt.loglog()
+
+	plt.legend(fontsize=14)
+	#plt.ylim(0.02,20)
+
+	plt.savefig('../plots/LIR_LHCN_plot.pdf', bbox_inches='tight', dpi=300)
+
+
+#HCN_LIR_plot()
 CO_ratio_HCN_plot()
 #HCN_12CO_ratio_histogram()
 

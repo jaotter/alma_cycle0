@@ -380,7 +380,7 @@ def gauss_sum(velocity, *params):
 		ctr = params[i]
 		amp = params[i+1]
 		wid = params[i+2]
-		y = y + amp * np.exp( -(velocity - ctr)**2/(2*wid)**2)
+		y = y + amp * np.exp( -(velocity - ctr)**2/(2*wid**2))
 	return y
 
 
@@ -559,10 +559,6 @@ def measure_fluxes(constrain=True, robust='2'):
 		spw = spw_list[i]
 		line_name = line_list[i]
 
-		#if spw == 'na':
-		#	cont_deg = -1
-		#else:
-		#	cont_deg = -1
 		cont_deg = -1
 
 		spectrum, vel = extract_spectrum(spw, line_name, contsub=True, return_type='vel', ap_radius=5*u.arcsecond, robust=robust)
@@ -661,15 +657,15 @@ def spectrum_fit_plot(fit_table_path, constr_fit_path, robust='2'):
 
 	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[0:3]), linestyle='-', linewidth=0.75, color='white')
 	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[3:6]), linestyle='-', linewidth=0.75, color='white')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[0:3]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A $\sigma=${int(np.round(HCN_params[2]))}')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[3:6]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A $\sigma=${int(np.round(HCN_params[5]))}')
+	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[0:3]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A$_1$ $\sigma=${int(np.round(HCN_params[2]))}')
+	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params[3:6]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A$_2$ $\sigma=${int(np.round(HCN_params[5]))}')
 	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params), linestyle='-', linewidth=2, color='tab:red', label='Fit A Total')
 
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[0:3]), linestyle='-', linewidth=0.75, color='white')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[3:6]), linestyle='-', linewidth=0.75, color='white')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[0:3]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(HCN_params_c[2]))}')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[3:6]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(HCN_params_c[5]))}')
-	ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c), linestyle='dashed', linewidth=1.5, color='tab:purple', label='Fit B Total')
+	#ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[0:3]), linestyle='-', linewidth=0.75, color='white')
+	#ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[3:6]), linestyle='-', linewidth=0.75, color='white')
+	#ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[0:3]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(HCN_params_c[2]))}')
+	#ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c[3:6]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(HCN_params_c[5]))}')
+	#ax1.plot(HCN_vel.value - galv.value, gauss_sum(HCN_vel.value, *HCN_params_c), linestyle='dashed', linewidth=1.5, color='tab:purple', label='Fit B Total')
 
 	ax1.set_title('HCN(1-0)', fontsize=12)
 	ax1.set_xlabel('Velocity (km/s)', fontsize=12)
@@ -689,14 +685,14 @@ def spectrum_fit_plot(fit_table_path, constr_fit_path, robust='2'):
 
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[0:3]), linestyle='-', linewidth=1, color='white')
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[3:6]), linestyle='-', linewidth=1, color='white')
-	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[0:3]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A $\sigma=${int(np.round(CO13_params[2]))}')
-	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[3:6]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A $\sigma=${int(np.round(CO13_params[5]))}')
+	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[0:3]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A$_1$ $\sigma=${int(np.round(CO13_params[2]))}')
+	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params[3:6]), linestyle='dotted', linewidth=1, color='tab:red', label=rf'Fit A$_2$ $\sigma=${int(np.round(CO13_params[5]))}')
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params), linestyle='-', linewidth=2, color='tab:red', label='Fit A Total')
 
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[0:3]), linestyle='-', linewidth=0.75, color='white')
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[3:6]), linestyle='-', linewidth=0.75, color='white')
-	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[0:3]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(CO13_params_c[2]))}')
-	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[3:6]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B $\sigma=${int(np.round(CO13_params_c[5]))}')
+	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[0:3]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B$_1$ $\sigma=${int(np.round(CO13_params_c[2]))}')
+	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c[3:6]), linestyle=(0,(5,1)), linewidth=1, color='tab:purple', label=rf'Fit B$_2$ $\sigma=${int(np.round(CO13_params_c[5]))}')
 	ax2.plot(CO13_vel.value - galv.value, gauss_sum(CO13_vel.value, *CO13_params_c), linestyle='dashed', linewidth=1.5, color='tab:purple', label='Fit B Total')
 
 	ax2.set_title(r'$^{13}$CO(2-1)', fontsize=12)
@@ -778,14 +774,14 @@ def twocomp_upperlimit(snr):
 
 
 
-twocomp_upperlimit(snr=88)
+#twocomp_upperlimit(snr=88)
 
 #measure_fluxes(constrain=False, robust='2')
 #measure_fluxes(constrain=True, robust='2')
 #measure_fluxes(constrain=False, robust='0.5')
 #measure_fluxes(constrain=True, robust='0.5')
 
-#spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
+spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
 
 
 

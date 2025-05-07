@@ -92,7 +92,15 @@ def extract_HCN_spectrum(ap_radius=5*u.arcsecond, pix_center=None, contsub=False
 	ap = CirclePixelRegion(center=center_pixcoord, radius=ap_radius_pix)
 	mask_cube = cube.subcube_from_regions([ap])
 
-	spectrum = mask_cube.sum(axis=(1,2))
+	#spectrum = mask_cube.sum(axis=(1,2))
+	spectrum_pbeam = mask_cube.sum(axis=(1,2))
+
+	pixscale = utils.proj_plane_pixel_area(cube.wcs.celestial)**0.5 * u.deg
+	ppbeam = (cube.beam.sr/(pixscale**2)).decompose().value
+	
+	spectrum = spectrum_pbeam / ppbeam
+
+
 	HCN_freq = 88.6316023 * u.GHz
 	cube_vel = mask_cube.with_spectral_unit(u.km/u.s, rest_value=HCN_freq, velocity_convention='optical')
 	vel = cube_vel.spectral_axis.to(u.km/u.s)
@@ -142,9 +150,9 @@ def plot_line_profiles(HCN_spectrum, HCN_vel, HCN_params, CO13_params, CO_lines)
 	plt.savefig('../plots/line_profiles.png', bbox_inches='tight')
 
 
-fit_table = Table.read('../twocomp_fluxes_r2.csv', format='csv')
+fit_table = Table.read('../tables/twocomp_fluxes_r2.csv', format='csv')
 
-spectrum, vel = extract_HCN_spectrum()
+spectrum, vel = extract_HCN_spectrum(ap_radius=5*u.arcsecond)
 #cont_params, residuals_clip_std, cont_serr, mask_ind = fit_continuum(spectrum, vel, 'HCN(1-0)', degree=1)
 #spectrum = spectrum - (vel * cont_params[1] + cont_params[0])
 
@@ -152,7 +160,9 @@ HCN_row = np.where(fit_table['line'] == 'HCN(1-0)')[0][0]
 HCN_params = [fit_table['comp1_vel'][HCN_row], fit_table['comp1_amp'][HCN_row]/(fit_table['comp1_amp'][HCN_row]+fit_table['comp2_amp'][HCN_row]), fit_table['comp1_sigma'][HCN_row],
 			fit_table['comp2_vel'][HCN_row], fit_table['comp2_amp'][HCN_row]/(fit_table['comp1_amp'][HCN_row]+fit_table['comp2_amp'][HCN_row]), fit_table['comp2_sigma'][HCN_row]]
 
+print(np.max(spectrum))
 spectrum = spectrum / (fit_table['comp1_amp'][HCN_row] + fit_table['comp2_amp'][HCN_row])
+print(np.max(spectrum))
 
 CO13_row = np.where(fit_table['line'] == '13CO(2-1)')[0][0]
 CO13_params = [fit_table['comp1_vel'][CO13_row], fit_table['comp1_amp'][CO13_row]/(fit_table['comp1_amp'][CO13_row]+fit_table['comp2_amp'][CO13_row]), fit_table['comp1_sigma'][CO13_row],
