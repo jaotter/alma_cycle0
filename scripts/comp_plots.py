@@ -475,6 +475,9 @@ def HCN_12CO_ratio_histogram():
 	ax1.axvline(n1266_ratio_out, color='tab:orange', linewidth=3, linestyle='dashed')
 	ax1.axvline(n1266_ratio_sys, color='tab:orange', linewidth=3, linestyle='dotted')
 
+	print(n1266_ratio_out)
+	print(n1266_ratio_sys)
+
 	ax1.set_xlabel(r'HCN/$^{12}$CO flux ratio', fontsize=16)
 	ax0.set_ylabel('Number', fontsize=16)
 	ax1.set_ylabel('Number', fontsize=16)
@@ -518,8 +521,8 @@ def HCN_LIR_plot():
 
 
 #HCN_LIR_plot()
-CO_ratio_HCN_plot()
-#HCN_12CO_ratio_histogram()
+#CO_ratio_HCN_plot()
+HCN_12CO_ratio_histogram()
 
 
 

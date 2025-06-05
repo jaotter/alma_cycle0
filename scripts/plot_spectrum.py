@@ -43,6 +43,11 @@ spw_dict = {'0':'5~25', '1':'', '2':'5~30;100~110',
 			'6':'', '7':'', '8':'5~145',
 			'9':'5~40; 85~105', '10':''}
 
+cont_lims_dict = {'H13CO+(4-3)':'-600:-200,200:400', 'SiO(8-7)':'-300:-200,250:600', 'SiO(7-6)':'-800:-400,750:850', 'CH3OH 2(1,1)-2(0,2)-+':'-500:-400:400:700', 'CH3OH 1(1,0)-1(0,1)-+':'-1300:-900,-500:-250', 
+				'H13CO+(3-2)':'-1000:-500:300:700', 'SiO(6-5)':'-650:-300,500:1000', 'HN13C(3-2)':'250:750,1500:1750',
+				'HC15N(3-2)':'-600:-400,400:750', 'H13CN(3-2)':'-300:-200,250:750', '13CO(2-1)':'-550:-300,300:550', 'SiO(5-4)':'-450:-300,250:450', 'H2S 2(2,0)-2(1,1)':'-1000:-800,-400:-200',
+				'SiO(2-1)':'-500:-250,500:1000', 'HCN(1-0)':'-750:-500,500:750'}
+
 def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, contsub=False, return_type='freq', robust=0.5):
 	#pix_center - center of aperture in pixel coordinates, if None use galaxy center
 
@@ -774,6 +779,80 @@ def twocomp_upperlimit(snr):
 
 
 
+def measure_fluxes_all(robust='0.5'):
+	#line_list = ['H13CO+(1-0)', 'H13CO+(3-2)', 'H13CO+(4-3)', 'HCN(1-0)', 'H13CN(3-2)', '13CO(2-1)', 'HN13C(3-2)', 
+	#			'SiO(2-1)', 'SiO(5-4)', 'SiO(6-5)', 'SiO(7-6)', 'SiO(8-7)']
+	#spw_list = ['5,7', '3', '0,1', '6', '4', '9', '3',
+	#			'5,7', '10', '3', '2', '0,1']
+	
+	line_list = [
+				'H13CO+(4-3)', 'SiO(8-7)', 'SiO(7-6)', 'CH3OH 2(1,1)-2(0,2)-+', 'CH3OH 1(1,0)-1(0,1)-+', 'H13CO+(3-2)', 'SiO(6-5)', 'HN13C(3-2)',
+				'HC15N(3-2)', 'H13CN(3-2)', '13CO(2-1)', 'SiO(5-4)', 'H2S 2(2,0)-2(1,1)',
+				'SiO(2-1)', 'HCN(1-0)']
+	spw_list = [
+				'0,1', '0,1', '0,1', '2', '2', '2', '3', '3', '3',
+				'4', '4', '9', '10', '10',
+				'5,7', '6']
+
+	flux_list = []
+	sum_flux_list = []
+	e_flux_list = []
+
+	sigma_list = []
+	e_sigma_list = []
+
+	vel_list = []
+	e_vel_list = []
+
+	amp_list = []
+	e_amp_list = []
+
+	snr_list = []
+	peak_snr_list = []
+
+	for i in np.arange(len(line_list)):
+		spw = spw_list[i]
+		line_name = line_list[i]
+
+		cont_deg = 1
+
+		spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=5*u.arcsecond, robust=robust)
+
+		fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1, cont_deg=cont_deg, robust=robust)
+		
+		line_freq = line_dict[line_name] * u.GHz
+		line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
+
+		popt, pcov, cont = fit_dict[line_name]
+		tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=1)
+
+		print(line_name)
+		print(f'Total Flux {tot_flux} +- {tot_flux_err}')
+
+		flux_list.append(tot_flux)
+		sum_flux_list.append(fit_dict['sum_flux'])
+		e_flux_list.append(tot_flux_err)
+
+		sigma_list.append(popt[2])
+		e_sigma_list.append(np.sqrt(pcov[2,2]))
+
+		vel_list.append(popt[0])
+		e_vel_list.append(np.sqrt(pcov[0,0]))
+
+		amp_list.append(popt[1])
+		e_amp_list.append(np.sqrt(pcov[1,1]))
+
+		snr_list.append(fit_dict['snr'])
+		peak_snr_list.append(fit_dict['peak_snr'])
+
+	tab = Table(names=('line', 'spw', 'total_flux', 'sum_flux', 'e_total_flux', 'sigma', 'e_sigma',
+						'vel', 'e_vel', 'amp', 'e_amp','peak_snr', 'snr'),
+				data=(line_list, spw_list, flux_list, sum_flux_list, e_flux_list, sigma_list, e_sigma_list, vel_list, e_vel_list, 
+					amp_list, e_amp_list, peak_snr_list, snr_list))
+	tab.write(f'/Users/jotter/highres_PSBs/alma_cycle0/tables/all_line_table.csv', format='csv', overwrite=True)
+
+
+
 #twocomp_upperlimit(snr=88)
 
 #measure_fluxes(constrain=False, robust='2')
@@ -781,7 +860,7 @@ def twocomp_upperlimit(snr):
 #measure_fluxes(constrain=False, robust='0.5')
 #measure_fluxes(constrain=True, robust='0.5')
 
-spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
+#spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
 
-
+measure_fluxes_all()
 
