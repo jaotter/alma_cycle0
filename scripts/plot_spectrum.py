@@ -12,6 +12,7 @@ from matplotlib.lines import Line2D
 from matplotlib import ticker
 from scipy.ndimage import gaussian_filter
 from astropy.stats import bayesian_info_criterion_lsq
+from spectres import spectres
 
 import glob
 import numpy as np
@@ -43,12 +44,12 @@ spw_dict = {'0':'5~25', '1':'', '2':'5~30;100~110',
 			'6':'', '7':'', '8':'5~145',
 			'9':'5~40; 85~105', '10':''}
 
-cont_lims_dict = {'H13CO+(4-3)':'-600:-200,200:400', 'SiO(8-7)':'-300:-200,250:600', 'SiO(7-6)':'-800:-400,750:850', 'CH3OH 2(1,1)-2(0,2)-+':'-500:-400:400:700', 'CH3OH 1(1,0)-1(0,1)-+':'-1300:-900,-500:-250', 
-				'H13CO+(3-2)':'-1000:-500:300:700', 'SiO(6-5)':'-650:-300,500:1000', 'HN13C(3-2)':'250:750,1500:1750',
+cont_lims_dict = {'HCN(1-0)':'-750:-500,500:750', '13CO(2-1)':'-550:-300,300:550', 'H13CO+(4-3)':'-600:-200,200:400', 'SiO(8-7)':'-350:-150,150:600', 'SiO(7-6)':'-850:-500,750:850', 'CH3OH 2(1,1)-2(0,2)-+':'-500:-400,400:700', 'CH3OH 1(1,0)-1(0,1)-+':'-1300:-900,-500:-250', 
+				'H13CO+(3-2)':'-1000:-500,300:700', 'SiO(6-5)':'-650:-300,500:1000', 'HN13C(3-2)':'250:750,1500:1750',
 				'HC15N(3-2)':'-600:-400,400:750', 'H13CN(3-2)':'-300:-200,250:750', '13CO(2-1)':'-550:-300,300:550', 'SiO(5-4)':'-450:-300,250:450', 'H2S 2(2,0)-2(1,1)':'-1000:-800,-400:-200',
 				'SiO(2-1)':'-500:-250,500:1000', 'HCN(1-0)':'-750:-500,500:750'}
 
-def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, contsub=False, return_type='freq', robust=0.5):
+def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, contsub=False, return_type='freq', robust=0.5, rebin_factor=1):
 	#pix_center - center of aperture in pixel coordinates, if None use galaxy center
 
 	if line_name == 'CO(1-0)':
@@ -129,6 +130,28 @@ def extract_spectrum(spw, line_name, ap_radius=3*u.arcsecond, pix_center=None, c
 	else:
 		vel = cube.spectral_axis.to(u.km/u.s)
 
+	if rebin_factor > 1:
+		wave_arr = cube.spectral_axis.to(u.mm, equivalencies=u.spectral())
+		wave_inds = [i for i in np.arange(1,len(wave_arr)-1) if i%rebin_factor == 0]
+
+		wave_arr_rebin = wave_arr[wave_inds]
+
+		print(wave_arr_rebin)
+		print(wave_arr)
+
+		print(spectrum.value)
+
+		rebin_spec = spectres(new_wavs=wave_arr_rebin.value, spec_wavs=wave_arr.value, spec_fluxes=spectrum.value)
+
+		print(len(rebin_spec))
+
+		orig_unit = spectrum.unit
+		spectrum = rebin_spec * orig_unit
+
+		freq = freq[wave_inds]
+		vel =  vel[wave_inds]
+
+
 	if return_type == 'freq':
 		return spectrum, freq
 	if return_type == 'vel':
@@ -167,37 +190,17 @@ def generate_spectrum(peak_snr, amp_ratio):
 	return final_spec, vel_arr
 
 
-def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None):
+def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None, cont_type='fit', cont_value=0):
 	## function to do continuum fit for a given line, with hand-selected continuum bands for each line
+	#cont_type is 'fit' to do a fit or 'manual' to enter value
+
 
 	line_vel = wave_vel - galv.value
 
-	#if line_name == 'CO(1-0)':
-
-	#for 13CO(2-1)
-	if line_name == '13CO(2-1)':
-		lower_band_kms = [-550,-300]
-		upper_band_kms = [300,550]
-		#lower_band_kms = [200, 250]
-		#upper_band_kms = [250,450]
-
-	#for HCN(1-0)
-	if line_name == 'HCN(1-0)':
-		lower_band_kms = [-750,-500]
-		upper_band_kms = [500,750]
-
-	else:
-		lower_band_kms = [-750,-500]
-		upper_band_kms = [500,750]
-
-	#for H13CN(3-2)
-	#lower_band_kms = [-495, -350]
-	#upper_band_kms = [350,1000]
-
-	#for HN13C(3-2)
-	#lower_band_kms = [350,650]
-	#upper_band_kms = [1500,1750]
-
+	lims_str = cont_lims_dict[line_name]
+	lower_str, upper_str = lims_str.split(',')
+	lower_band_kms = np.array(lower_str.split(':'), dtype=np.float64)
+	upper_band_kms = np.array(upper_str.split(':'), dtype=np.float64)
 
 	lower_ind1 = np.where(line_vel > lower_band_kms[0])
 	lower_ind2 = np.where(line_vel < lower_band_kms[1])
@@ -214,7 +217,7 @@ def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None):
 	fit_spec = np.concatenate((spectrum[lower_ind], spectrum[upper_ind]))
 	fit_wave = np.concatenate((wave_vel[lower_ind], wave_vel[upper_ind]))
 
-	if degree >= 0:
+	if cont_type == 'fit':
 		cont_model = odr.polynomial(degree)
 		data = odr.Data(fit_wave, fit_spec)
 		odr_obj = odr.ODR(data, cont_model)
@@ -224,22 +227,24 @@ def fit_continuum(spectrum, wave_vel, line_name, degree=1, mask_ind=None):
 		cont_params = output.beta
 		#cont_params is [intercept, slope] with velocity as unit
 
-	else:
-		cont_params = [0]
+	elif cont_type == 'manual':
+		cont_params = [cont_value]
+		degree = -1
 
 
-	if degree <= 0:
-		cont_fit = wave_vel * 0 + cont_params[0]
-	if degree == 1:
-		cont_fit = wave_vel * cont_params[0] + cont_params[1]
-	if degree == 2:
-		cont_fit = (wave_vel**2) * cont_params[2] + wave_vel * cont_params[1] + cont_params[0]
-	if degree == 3:
-		cont_fit = (wave_vel**3) * cont_params[0] + (wave_vel**2) * cont_params[1] + wave_vel * cont_params[2] + cont_params[3]
+		'''if degree <= 0:
+									cont_fit = wave_vel * 0 + cont_params[0]
+								if degree == 1:
+									cont_fit = wave_vel * cont_params[0] + cont_params[1]
+								if degree == 2:
+									cont_fit = (wave_vel**2) * cont_params[2] + wave_vel * cont_params[1] + cont_params[0]
+								if degree == 3:
+									cont_fit = (wave_vel**3) * cont_params[0] + (wave_vel**2) * cont_params[1] + wave_vel * cont_params[2] + cont_params[3]
+						
+								spectrum_contsub = spectrum - cont_fit'''
 
-	spectrum_contsub = spectrum - cont_fit
+		#fit_residuals = fit_spec - (fit_wave * cont_params[1] + cont_params[0])
 
-	#fit_residuals = fit_spec - (fit_wave * cont_params[1] + cont_params[0])
 
 	if degree <= 0:
 		fit_residuals = fit_spec - (fit_wave * 0 + cont_params[0])
@@ -293,20 +298,24 @@ def fit_line(spectrum_fit, wave_vel_fit, spectrum_err_fit, cont_params, line_nam
 
 		sig1 = int(np.round(popt[2]))
 
-
+		wave_lin = np.linspace(wave_vel_fit[0], wave_vel_fit[-1], 100)
+		cont_lin_fit = wave_lin * 0 + cont_params[0]
 		
 		ax0.axhline(0, color='k')
 		ax0.plot(wave_vel_fit-galv.value, spectrum_fit, color='tab:blue', linestyle='-', marker='.', label='Data')
-		ax0.plot(wave_vel_fit-galv.value, gauss_sum(wave_vel_fit, *popt[0:3]) + cont_fit, linestyle='--', color='tab:purple', label=fr'Comp 1 $\sigma$={sig1}')
+		ax0.plot(wave_lin-galv.value, gauss_sum(wave_lin, *popt[0:3]) + cont_lin_fit, linestyle='--', color='tab:purple', label=fr'Comp 1 $\sigma$={sig1}')
 		if ncomp == 2:
 			amp2 = np.round(popt[4])
 			sig2 = int(np.round(popt[5]))
-			ax0.plot(wave_vel_fit-galv.value, gauss_sum(wave_vel_fit, *popt[3:6]) + cont_fit, linestyle='-', color='tab:purple', label=fr'Comp 2 $\sigma$={sig2}')
+			ax0.plot(wave_lin-galv.value, gauss_sum(wave_lin, *popt[3:6]) + cont_lin_fit, linestyle='-', color='tab:purple', label=fr'Comp 2 $\sigma$={sig2}')
 
 		if np.abs(cont_params[0]) > 1e-3:
 			ax0.plot(wave_vel_fit-galv.value, cont_fit, linestyle='-', color='tab:orange', label='Continuum')
 
 		ax0.plot(wave_vel_fit-galv.value, cont_fit + gauss_sum(wave_vel_fit, *popt), linestyle='-', color='k', label='Full Fit')
+
+		#ax0_range = ax0.get_ylim()
+		#ax0.fill_between([-300,300],ax0_range[0], ax0_range[1], alpha=0.3, color='tab:purple')
 
 		if mask_ind is not None:
 			ax0.plot(wave_vel_fit[mask_ind]-galv.value, spectrum_fit[mask_ind], color='tab:red', linestyle='-', marker='x')
@@ -389,9 +398,12 @@ def gauss_sum(velocity, *params):
 	return y
 
 
-def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constrain=False, robust='2'):
+def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constrain=False, robust='2', 
+					cont_type='fit', cont_value=0, start_bounds=None):
 	#given aperture spectrum and list of lines, fit each one, return dictionary with fit parameters for each
 	#set cont_deg = -1 for no continuum fitting
+	#start_bounds - set to initialize these
+
 	return_dict = {}
 
 	line_freq = line_dict[line_name] * u.GHz
@@ -400,7 +412,8 @@ def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constr
 	fit_spec = spectrum.value
 	fit_vel = velocity.value
 
-	cont_params, cont_std, cont_serr, mask_ind = fit_continuum(spectrum.value, velocity.value, line_name, degree=cont_deg, mask_ind=None)
+	cont_params, cont_std, cont_serr, mask_ind = fit_continuum(spectrum.value, velocity.value, line_name, 
+																degree=cont_deg, mask_ind=None, cont_type=cont_type, cont_value=cont_value)
 	#cont_fit = fit_spec_vel * cont_params[1] + cont_params[0]
 	cont_std_err = np.repeat(cont_std, len(fit_spec))
 
@@ -420,14 +433,19 @@ def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constr
 		#start = [peak_vel, peak_flux, 150]
 		start = [galv.value, peak_flux, 30]
 		bounds = ([galv.value - 500, peak_flux * 0.01, 10], [galv.value + 500, peak_flux*3, 300])
+		
 
 	if fit_ncomp == 2:
 		start = [peak_vel, peak_flux, 50, peak_vel, (peak_flux)*0.25, 150]
-		bounds = ([galv.value - 500, peak_flux * 0.01, 20, galv.value - 500, 0, 10], [galv.value + 500, peak_flux*3, 600, galv.value + 500, peak_flux*10, 600])
+		bounds = ([galv.value - 500, peak_flux * 0.01, 20, galv.value - 500, 0, 10], 
+					[galv.value + 500, peak_flux*3, 600, galv.value + 500, peak_flux*10, 600])
 		if constrain == True:
 			start = [peak_vel, peak_flux, 50, peak_vel, (peak_flux)*0.25, 150]
 			bounds = ([galv.value - 500, peak_flux * 0.01, 20, galv.value - 500, 0, 145], [galv.value + 500, peak_flux*3, 600, galv.value + 500, peak_flux*10, 151])
-		
+	
+	if start_bounds is not None:
+		start, bounds = start_bounds
+
 	popt, pcov = fit_line(spectrum.value, velocity.value, cont_std_err, cont_params, line_name, start, bounds, ncomp=fit_ncomp, plot=True, mask_ind=mask_ind,
 							constrain=constrain, robust=robust)
 
@@ -445,8 +463,16 @@ def fit_spectrum(spectrum, velocity, line_name, cont_deg=-1, fit_ncomp=2, constr
 	ind1 = np.where(velocity.value > chan_range[0])[0][0]
 	ind2 = np.where(velocity.value < chan_range[1])[0][-1]
 
-	sum_spectrum = spectrum[ind1:ind2]
-	sum_flux = np.nansum(sum_spectrum) * np.average(velocity[1:]-velocity[:-1])
+
+	if len(cont_params) == 1:
+		cont_fit = velocity.value * 0 + cont_params[0]
+	if len(cont_params) == 2:
+		cont_fit = velocity.value * cont_params[1] + cont_params[0]
+
+	contsub_spec = spectrum.value - cont_fit
+
+	sum_spectrum = contsub_spec[ind1:ind2] * u.Jy * u.km / u.s
+	sum_flux = np.nansum(sum_spectrum) * np.average(velocity[1:]-velocity[:-1]) #multiply by velocity bin size
 
 	#sum_flux_contsub = np.nansum(spectrum.value[ind1:ind2] - (velocity.value[ind1:ind2] * cont_params[1] + cont_params[0]))
 
@@ -779,33 +805,42 @@ def twocomp_upperlimit(snr):
 
 
 
-def measure_fluxes_all(robust='0.5'):
+def measure_fluxes_all(robust='0.5', name='', cont_fit_type='fit', rebin_default=1):
 	#line_list = ['H13CO+(1-0)', 'H13CO+(3-2)', 'H13CO+(4-3)', 'HCN(1-0)', 'H13CN(3-2)', '13CO(2-1)', 'HN13C(3-2)', 
 	#			'SiO(2-1)', 'SiO(5-4)', 'SiO(6-5)', 'SiO(7-6)', 'SiO(8-7)']
 	#spw_list = ['5,7', '3', '0,1', '6', '4', '9', '3',
 	#			'5,7', '10', '3', '2', '0,1']
+
+	#cont_fit_type is 'fit' to fit the continuum, 'lowcont' for the low by eye estimate, and 'hicont' for the high by eye estimate
 	
 	line_list = [
 				'H13CO+(4-3)', 'SiO(8-7)', 'SiO(7-6)', 'CH3OH 2(1,1)-2(0,2)-+', 'CH3OH 1(1,0)-1(0,1)-+', 'H13CO+(3-2)', 'SiO(6-5)', 'HN13C(3-2)',
-				'HC15N(3-2)', 'H13CN(3-2)', '13CO(2-1)', 'SiO(5-4)', 'H2S 2(2,0)-2(1,1)',
-				'SiO(2-1)', 'HCN(1-0)']
+				'HC15N(3-2)', 'H13CN(3-2)', 'SiO(5-4)', 'H2S 2(2,0)-2(1,1)', 'SiO(2-1)']
 	spw_list = [
-				'0,1', '0,1', '0,1', '2', '2', '2', '3', '3', '3',
-				'4', '4', '9', '10', '10',
-				'5,7', '6']
+				'0,1', '0,1', '2', '2', '2', '3', '3', '3',
+				'4', '4', '10', '10', '5,7']
 
-	flux_list = []
+	flux_comp1_list = []
+	flux_comp2_list = []
 	sum_flux_list = []
-	e_flux_list = []
 
-	sigma_list = []
-	e_sigma_list = []
+	e_flux_comp1_list = []
+	e_flux_comp2_list = []
 
-	vel_list = []
-	e_vel_list = []
+	comp1_sigma_list = []
+	comp2_sigma_list = []
+	e_comp1_sigma_list = []
+	e_comp2_sigma_list = []
 
-	amp_list = []
-	e_amp_list = []
+	comp1_vel_list = []
+	comp2_vel_list = []
+	e_comp1_vel_list = []
+	e_comp2_vel_list = []
+
+	comp1_amp_list = []
+	comp2_amp_list = []
+	e_comp1_amp_list = []
+	e_comp2_amp_list = []
 
 	snr_list = []
 	peak_snr_list = []
@@ -814,42 +849,121 @@ def measure_fluxes_all(robust='0.5'):
 		spw = spw_list[i]
 		line_name = line_list[i]
 
-		cont_deg = 1
+		if cont_fit_type == 'fit':
+			cont_deg = 1
+			cont_value = None
+			cont_type = 'fit'
 
-		spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=5*u.arcsecond, robust=robust)
+		elif cont_fit_type == 'lowcont':
+			cont_deg = -1
+			cont_value = lowcont_dict[line_name]
+			cont_type = 'manual'
 
-		fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=1, cont_deg=cont_deg, robust=robust)
+		elif cont_fit_type == 'hicont':
+			cont_deg = -1
+			cont_value = hicont_dict[line_name]
+			cont_type = 'manual'
+
+		rebin_factor = rebin_default
+
+		if line_name == 'SiO(8-7)':
+			rebin_factor = 9
+
+		spectrum, vel = extract_spectrum(spw, line_name, contsub=False, return_type='vel', ap_radius=5*u.arcsecond, robust=robust,
+											rebin_factor=rebin_factor)
+
+		ncomp = 1
+		peak_flux = np.max(spectrum).value
+		start = [galv.value, peak_flux, 30]
+		bounds = ([galv.value - 50, peak_flux * 0.01, 10], [galv.value + 50, peak_flux*3, 150])
+
+		if line_name == 'SiO(6-5)':
+			ncomp = 2
+			restfreq = line_dict[line_name] * u.GHz
+			freq_to_vel = u.doppler_optical(restfreq)
+			second_line_vel = (line_dict['H13CO+(3-2)'] * u.GHz).to(u.km / u.s, equivalencies=freq_to_vel) + galv
+
+		if line_name == 'SiO(7-6)':
+			ncomp = 2
+			restfreq = line_dict[line_name] * u.GHz
+			freq_to_vel = u.doppler_optical(restfreq)
+			second_line_vel = (line_dict['CH3OH 2(1,1)-2(0,2)-+'] * u.GHz).to(u.km / u.s, equivalencies=freq_to_vel) + galv
+
+		if line_name == 'SiO(8-7)':
+			ncomp = 2
+			restfreq = line_dict[line_name] * u.GHz
+			freq_to_vel = u.doppler_optical(restfreq)
+			second_line_vel = (line_dict['H13CO+(4-3)'] * u.GHz).to(u.km / u.s, equivalencies=freq_to_vel) + galv
+
+		if ncomp == 2:
+			start = [galv.value, peak_flux, 30, second_line_vel.value, peak_flux, 30]
+			bounds = ([galv.value - 50, peak_flux * 0.01, 10, second_line_vel.value - 50, peak_flux * 0.01, 10], [galv.value + 50, peak_flux*3, 150, second_line_vel.value + 50, peak_flux*3, 150])
+
+		start_bounds = [start, bounds]
+
+		fit_dict = fit_spectrum(spectrum, vel, line_name, fit_ncomp=ncomp, cont_deg=cont_deg, robust=robust, cont_type=cont_type,
+											cont_value=cont_value, start_bounds=start_bounds)
 		
 		line_freq = line_dict[line_name] * u.GHz
 		line_wave = line_freq.to(u.angstrom, equivalencies=u.spectral())
 
 		popt, pcov, cont = fit_dict[line_name]
-		tot_flux, tot_flux_err = compute_flux(popt, pcov, line_wave, ncomp=1)
 
-		print(line_name)
-		print(f'Total Flux {tot_flux} +- {tot_flux_err}')
+		comp1_flux, comp1_flux_err = compute_flux(popt[0:3], pcov[0:3], line_wave, ncomp=1)
 
-		flux_list.append(tot_flux)
+		flux_comp1_list.append(comp1_flux)
+		e_flux_comp1_list.append(comp1_flux_err)
 		sum_flux_list.append(fit_dict['sum_flux'])
-		e_flux_list.append(tot_flux_err)
 
-		sigma_list.append(popt[2])
-		e_sigma_list.append(np.sqrt(pcov[2,2]))
+		comp1_sigma_list.append(popt[2])
+		e_comp1_sigma_list.append(np.sqrt(pcov[2,2]))
+		
+		comp1_vel_list.append(popt[0])
+		e_comp1_vel_list.append(np.sqrt(pcov[0,0]))
+		
+		comp1_amp_list.append(popt[1])
+		e_comp1_amp_list.append(np.sqrt(pcov[1,1]))
+		
 
-		vel_list.append(popt[0])
-		e_vel_list.append(np.sqrt(pcov[0,0]))
+		if ncomp == 1:
+			flux_comp2_list.append(-1)
+			e_flux_comp2_list.append(-1)
 
-		amp_list.append(popt[1])
-		e_amp_list.append(np.sqrt(pcov[1,1]))
+			comp2_sigma_list.append(-1)
+			e_comp2_sigma_list.append(-1)
+
+			comp2_vel_list.append(-1)
+			e_comp2_vel_list.append(-1)
+
+			comp2_amp_list.append(-1)
+			e_comp2_amp_list.append(-1)
+
+		if ncomp == 2:
+			comp2_flux, comp2_flux_err = compute_flux(popt[3:6], pcov[3:6], line_wave, ncomp=1)
+
+			flux_comp2_list.append(comp2_flux)
+			e_flux_comp2_list.append(comp2_flux_err)
+
+			comp2_sigma_list.append(popt[5])
+			e_comp2_sigma_list.append(np.sqrt(pcov[5,5]))
+
+			comp2_vel_list.append(popt[3])
+			e_comp2_vel_list.append(np.sqrt(pcov[3,3]))
+
+			comp2_amp_list.append(popt[4])
+			e_comp2_amp_list.append(np.sqrt(pcov[4,4]))
+
 
 		snr_list.append(fit_dict['snr'])
 		peak_snr_list.append(fit_dict['peak_snr'])
 
-	tab = Table(names=('line', 'spw', 'total_flux', 'sum_flux', 'e_total_flux', 'sigma', 'e_sigma',
-						'vel', 'e_vel', 'amp', 'e_amp','peak_snr', 'snr'),
-				data=(line_list, spw_list, flux_list, sum_flux_list, e_flux_list, sigma_list, e_sigma_list, vel_list, e_vel_list, 
-					amp_list, e_amp_list, peak_snr_list, snr_list))
-	tab.write(f'/Users/jotter/highres_PSBs/alma_cycle0/tables/all_line_table.csv', format='csv', overwrite=True)
+	tab = Table(names=('line', 'spw', 'comp1_flux', 'comp2_flux', 'sum_flux', 'e_comp1_flux', 'e_comp2_flux', 'comp1_sigma', 'comp2_sigma',
+						'e_comp1_sigma', 'e_comp2_sigma', 'comp1_vel', 'comp2_vel', 'e_comp1_vel', 'e_comp2_vel', 'comp1_amp', 'comp2_amp',
+						'e_comp1_amp', 'e_comp2_amp', 'peak_snr', 'snr'),
+				data=(line_list, spw_list, flux_comp1_list, flux_comp2_list, sum_flux_list, e_flux_comp1_list, e_flux_comp2_list, comp1_sigma_list,
+						comp2_sigma_list, e_comp1_sigma_list, e_comp2_sigma_list, comp1_vel_list, comp2_vel_list, e_comp1_vel_list, e_comp2_vel_list, 
+						comp1_amp_list, comp2_amp_list, e_comp1_amp_list, e_comp2_amp_list, peak_snr_list, snr_list))
+	tab.write(f'/Users/jotter/highres_PSBs/alma_cycle0/tables/all_line_table_{name}.csv', format='csv', overwrite=True)
 
 
 
@@ -862,5 +976,15 @@ def measure_fluxes_all(robust='0.5'):
 
 #spectrum_fit_plot('../tables/twocomp_fluxes_r2.csv', '../tables/twocomp_fluxes_constr_r2.csv')
 
-measure_fluxes_all()
+lowcont_dict = {'H13CO+(4-3)':0.01, 'SiO(8-7)':0.01, 'SiO(7-6)':0.01, 'CH3OH 2(1,1)-2(0,2)-+':0.01, 'CH3OH 1(1,0)-1(0,1)-+':0.01, 'H13CO+(3-2)':0.006, 
+				'SiO(6-5)':0.006, 'HN13C(3-2)':0.006,'HC15N(3-2)':0.006, 'H13CN(3-2)':0.006, 'SiO(5-4)':0.005, 'H2S 2(2,0)-2(1,1)':0.004, 'SiO(2-1)':0.002}
+
+hicont_dict = {'H13CO+(4-3)':0.015, 'SiO(8-7)':0.015, 'SiO(7-6)':0.012, 'CH3OH 2(1,1)-2(0,2)-+':0.012, 'CH3OH 1(1,0)-1(0,1)-+':0.012, 'H13CO+(3-2)':0.008, 
+				'SiO(6-5)':0.008, 'HN13C(3-2)':0.008,'HC15N(3-2)':0.008, 'H13CN(3-2)':0.008, 'SiO(5-4)':0.006, 'H2S 2(2,0)-2(1,1)':0.006, 'SiO(2-1)':0.004}
+
+
+
+
+measure_fluxes_all(name='lowcont_rebin2', cont_fit_type='lowcont', rebin_default=3)
+#measure_fluxes_all(name='hicont_sig1', cont_fit_type='hicont', smooth_sigma=5)
 
