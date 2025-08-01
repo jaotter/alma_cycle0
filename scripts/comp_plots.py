@@ -4,7 +4,9 @@ import astropy.constants as const
 import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
+import glob
 
+from matplotlib.patches import Polygon
 from astropy.cosmology import FlatLambdaCDM
 
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
@@ -213,8 +215,6 @@ e_n1266_13CO21_out = n1266_tab['e_comp2_flux'][3]
 amp_ratio_ulim = 0.02 #figured out from plot_spectrum.py -> twocomp_upperlimit(snr=88)
 n1266_13CO21_out_ulim = n1266_13CO21_sys * amp_ratio_ulim
 
-print(n1266_HCN)
-
 #following Gao 2004, in Jy km/s pc^2
 ngc1266_HCN_L = n1266_HCN * (n1266_dist.to(u.pc))**2 * np.pi / (4 * np.log(2)) * (1+n1266_z)**3 * theta_n1266_HCN**2
 ngc1266_LFIR = (5.2e43 * u.erg/u.s).to(u.Lsun)
@@ -226,6 +226,8 @@ n1266_F60 = 13.13
 n1266_F100 = 16.89
 
 ngc1266_LIR = ((1.8e-14 * (13.48*n1266_F12 + 5.16*n1266_F25 + 2.58*n1266_F60 + n1266_F100))*u.W/u.m**2 * 4 * np.pi * n1266_dist**2).to(u.Lsun)
+
+print(f'NGC 1266 LIR: {ngc1266_LIR} Lsun')
 
 #from Crocker12
 #12CO(2-1)/13CO(2-1)
@@ -313,6 +315,27 @@ gso_LHCN_K = gso_table['LHCN'] * 1e8 #K km/s pc^2
 gso_LHCN_Jy = gso_LHCN_K * 4.8 #Jy/K
 
 
+#### loading in EMPIRE data
+
+empire_galnames = []
+empire_HCN_13CO = []
+empire_13CO_12CO = []
+
+empire_paths = glob.glob(f'../tables/empiredata*.dat')
+for pth in empire_paths:
+	flname = pth.split('/')[-1]
+	galname = flname.split('_')[1]
+	empire_galnames.append(galname)
+
+	emp_tab = Table.read(pth, format='ascii')
+	good_ind = np.where(emp_tab['Limit_hcn'] > 0)[0]
+	hcn_flux = emp_tab['i_hcn'][good_ind]
+	co_flux = emp_tab['i_co'][good_ind]
+	co13_flux = emp_tab['i_13co'][good_ind]
+
+	empire_HCN_13CO.append(hcn_flux/co13_flux)
+	empire_13CO_12CO.append(co13_flux/co_flux)
+
 
 
 #### plotting
@@ -342,29 +365,50 @@ def CO_ratio_HCN_plot():
 	pec = np.where(gal_type[both_ind] == 'Peculiar')[0]
 
 	fig = plt.figure(figsize=(8,8))
+	ax = fig.add_subplot(111)
 
 
 	#GOALS
-	plt.errorbar(gls_1312CO[gls_noulim], gls_HCN_13CO[gls_noulim], xerr=e_gls_1312CO[gls_noulim], yerr=e_gls_HCN_13CO[gls_noulim], linestyle='', marker='d', color='tab:blue', label='GOALS')
+	gls = plt.errorbar(gls_1312CO[gls_noulim], gls_HCN_13CO[gls_noulim], xerr=e_gls_1312CO[gls_noulim], yerr=e_gls_HCN_13CO[gls_noulim], linestyle='', marker='d', color='tab:blue', label='GOALS LIRGs')
 	plt.errorbar(gls_1312CO[gls_ulim_HCN], gls_HCN_13CO[gls_ulim_HCN], xerr=e_gls_1312CO[gls_ulim_HCN], yerr=gls_HCN_13CO[gls_ulim_HCN]*0.15, uplims=True, linestyle='', marker='d', color='tab:blue', mfc='white')
-
+	gls_agn = plt.errorbar(CO_1312_both[seyfert], HCN_13CO_both[seyfert], xerr=e_CO_1312_both[seyfert], yerr=e_HCN_13CO_both[seyfert], linestyle='', marker='s', color='k', label='Seyfert')
+	gls_sb = plt.errorbar(CO_1312_both[starburst], HCN_13CO_both[starburst], xerr=e_CO_1312_both[starburst], yerr=e_HCN_13CO_both[starburst], linestyle='', marker='*', color='tab:green', label='Starburst')
+	
 	#plt.errorbar(CO_1312_both[etg], HCN_13CO_both[etg], xerr=e_CO_1312_both[etg], yerr=e_HCN_13CO_both[etg], linestyle='', marker='o', color='tab:red', label='Early-type')
-	plt.errorbar(CO_1312_both[seyfert], HCN_13CO_both[seyfert], xerr=e_CO_1312_both[seyfert], yerr=e_HCN_13CO_both[seyfert], linestyle='', marker='s', color='k', label='Seyfert')
-	plt.errorbar(CO_1312_both[starburst], HCN_13CO_both[starburst], xerr=e_CO_1312_both[starburst], yerr=e_HCN_13CO_both[starburst], linestyle='', marker='*', color='tab:green', label='Starburst')
 	#plt.errorbar(CO_1312_both[SF], HCN_13CO_both[SF], xerr=e_CO_1312_both[SF], yerr=e_HCN_13CO_both[SF], linestyle='', marker='o', color='tab:cyan', label='Star-forming')
 	#plt.errorbar(CO_1312_both[dwarf], HCN_13CO_both[dwarf], xerr=e_CO_1312_both[dwarf], yerr=e_HCN_13CO_both[dwarf], linestyle='', marker='P', color='tab:purple', label='Dwarf')
 	#plt.errorbar(CO_1312_both[pec], HCN_13CO_both[pec], xerr=e_CO_1312_both[pec], yerr=e_HCN_13CO_both[pec], linestyle='', marker='v', color='tab:olive', label='Merger/Peculiar')
 
 	
 	#ATLAS3D
-	plt.errorbar(etg_13co_12co[etg_noulim], etg_hcn_13co[etg_noulim], xerr=[e_up_etg_13co_12co[etg_noulim], e_down_etg_13co_12co[etg_noulim]], 
+	atlas = plt.errorbar(etg_13co_12co[etg_noulim], etg_hcn_13co[etg_noulim], xerr=[e_up_etg_13co_12co[etg_noulim], e_down_etg_13co_12co[etg_noulim]], 
 					yerr=[e_up_etg_hcn_13co[etg_noulim], e_down_etg_hcn_13co[etg_noulim]], linestyle='', marker='p', color='tab:red', label='ATLAS3D ETGs')
 	plt.errorbar(etg_13co_12co[etg_ulim_HCN], etg_hcn_13co[etg_ulim_HCN], xerr=[e_up_etg_13co_12co[etg_ulim_HCN], e_down_etg_13co_12co[etg_ulim_HCN]],
 					yerr=etg_hcn_13co[etg_ulim_HCN]*0.15, uplims=True, linestyle='', marker='p', color='tab:red', mfc='white')
 
 	#L1157 Yamaguchi 2012
-	plt.errorbar(L1157_1312_CO, L1157_HCN_13CO, xerr=e_L1157_1312_CO, yerr=e_L1157_HCN_13CO, linestyle='', marker='H', color='tab:olive',
+	l1157 = plt.errorbar(L1157_1312_CO, L1157_HCN_13CO, xerr=e_L1157_1312_CO, yerr=e_L1157_HCN_13CO, linestyle='', marker='H', color='tab:olive',
 					label='L1157 Shock', markersize=8)
+
+	#EMPIRE resolved measurements
+	for i, gal in enumerate(empire_galnames):
+
+		gal_1312co = empire_13CO_12CO[i].data
+		gal_hcn13co = empire_HCN_13CO[i].data
+		max_x = np.where(gal_1312co == np.max(gal_1312co))[0]
+		min_x = np.where(gal_1312co == np.min(gal_1312co))[0]
+		max_y = np.where(gal_hcn13co == np.max(gal_hcn13co))[0]
+		min_y = np.where(gal_hcn13co == np.min(gal_hcn13co))[0]
+		#verts_x = np.array([ gal_1312co[min_x][0], gal_1312co[max_y][0], gal_1312co[min_y][0], gal_1312co[max_x][0]])
+		#verts_y = np.array([gal_hcn13co[max_x][0], gal_hcn13co[min_x][0], gal_hcn13co[max_y][0], gal_hcn13co[min_y][0], gal_hcn13co[max_x][0]])
+		verts_xy = np.array([(gal_1312co[max_x][0],gal_hcn13co[max_x][0]), (gal_1312co[max_y][0],gal_hcn13co[max_y][0]), (gal_1312co[min_x][0],gal_hcn13co[min_x][0]),
+							(gal_1312co[min_y][0],gal_hcn13co[min_y][0])])
+
+		poly = Polygon(xy=verts_xy, alpha=0.25, fc='teal', label='EMPIRE star-forming')
+		emp = ax.add_patch(poly)
+
+		#plt.plot(empire_13CO_12CO[i], empire_HCN_13CO[i], marker='.', linestyle='', alpha=0.25, label=gal)
+
 
 	#NGC 1266 this work outflow and sys
 	n1266_1312CO_out_ulim = n1266_13CO_out_ulim / n1266_CO_out
@@ -375,8 +419,8 @@ def CO_ratio_HCN_plot():
 	e_n1266_1312CO_sys = n1266_1312CO_sys * np.sqrt((e_n1266_13CO_sys/n1266_13CO_sys)**2 + (e_n1266_CO_sys/n1266_CO_sys)**2)
 	e_n1266_HCN_13CO_sys = n1266_HCN_13CO_sys  * np.sqrt((e_n1266_13CO_sys/n1266_13CO_sys)**2 + (e_n1266_HCN_sys/n1266_HCN_sys)**2)
 
-	plt.errorbar(n1266_1312CO_out_ulim, n1266_HCN_13CO_out_llim, xerr=n1266_1312CO_out_ulim*0.15, yerr=n1266_HCN_13CO_out_llim*0.15, lolims=True, xuplims=True, linestyle='', marker='s', color='tab:orange', label='NGC 1266 (outflow)', markersize=10, mec='k')
-	plt.errorbar(n1266_1312CO_sys, n1266_HCN_13CO_sys, xerr=e_n1266_1312CO_sys, yerr=e_n1266_HCN_13CO_sys, linestyle='', marker='D', color='tab:orange', label='NGC 1266 (systemic)', markersize=10, mec='k')
+	n1266_out = plt.errorbar(n1266_1312CO_out_ulim, n1266_HCN_13CO_out_llim, xerr=n1266_1312CO_out_ulim*0.15, yerr=n1266_HCN_13CO_out_llim*0.15, lolims=True, xuplims=True, linestyle='', marker='s', color='tab:orange', label='NGC 1266 (outflow)', markersize=10, mec='k')
+	n1266_sys = plt.errorbar(n1266_1312CO_sys, n1266_HCN_13CO_sys, xerr=e_n1266_1312CO_sys, yerr=e_n1266_HCN_13CO_sys, linestyle='', marker='D', color='tab:orange', label='NGC 1266 (systemic)', markersize=10, mec='k')
 
 	print(f'outflow R13: {n1266_1312CO_out_ulim}')
 	print(f'sys R13: {n1266_1312CO_sys} pm {e_n1266_1312CO_sys}')
@@ -392,7 +436,7 @@ def CO_ratio_HCN_plot():
 	e_up_n1266_HCN_13CO = e_up_etg_hcn_13co[3]
 	e_down_n1266_HCN_13CO = e_down_etg_hcn_13co[3]
 
-	plt.errorbar(n1266_1312CO, n1266_HCN_13CO, xerr=[[e_up_n1266_1312CO], [e_down_n1266_1312CO]], yerr=[[e_up_n1266_HCN_13CO], [e_down_n1266_HCN_13CO]], linestyle='', marker='H', color='tab:orange', label='NGC 1266 (single dish)', markersize=10, mec='k')
+	n1266_sd = plt.errorbar(n1266_1312CO, n1266_HCN_13CO, xerr=[[e_up_n1266_1312CO], [e_down_n1266_1312CO]], yerr=[[e_up_n1266_HCN_13CO], [e_down_n1266_HCN_13CO]], linestyle='', marker='H', color='tab:orange', label='NGC 1266 (single dish)', markersize=10, mec='k')
 
 
 	plt.xlabel(r'$^{13}$CO(1-0) / $^{12}$CO(1-0)  flux ratio', fontsize=16)
@@ -402,10 +446,12 @@ def CO_ratio_HCN_plot():
 
 	plt.loglog()
 
-	plt.legend(fontsize=14)
+	ax.legend(handles=[n1266_sys, n1266_out, n1266_sd, gls, gls_agn, gls_sb, atlas, l1157, emp], fontsize=14)
+
+
 	plt.ylim(0.02,20)
 
-	plt.savefig('../plots/HCN_CO_ratio_plot.pdf', bbox_inches='tight', dpi=300)
+	plt.savefig('../plots/HCN_CO_ratio_plot_empire.pdf', bbox_inches='tight', dpi=300)
 
 
 
@@ -443,28 +489,28 @@ def HCN_12CO_ratio_histogram():
 	hatches = [None,"/"]
 	linestyles = ['-', 'dashed']
 	
-	ax0.hist([sfg_ratio, sfg_ratio_ulim, sfg_ratio_llim], all_bins, color=['tab:blue','tab:blue','tab:blue'], edgecolor=['navy','navy','navy'], alpha=0.25, label='Star-forming', histtype='barstacked', hatch=[None,"/", "\\"])
+	ax0.hist([sfg_ratio, sfg_ratio_ulim, sfg_ratio_llim], all_bins, color=['tab:blue','tab:blue','tab:blue'], edgecolor=['navy','navy','navy'], alpha=0.25, label='Star-forming (Gao 04)', histtype='barstacked', hatch=[None,"/", "\\"])
 	ax0.hist([sfg_ratio, sfg_ratio_ulim, sfg_ratio_llim], all_bins, edgecolor=['tab:blue','tab:blue','tab:blue'], histtype='step', stacked=True, linewidth=4, linestyle=['-', 'dashed', 'dotted'])
 	#ax0.hist(sfg_ratio_ulim, all_bins, edgecolor='tab:blue', histtype='step', linewidth=3, linestyle='dashed', hatch='//')
 	#ax0.hist(sfg_ratio_llim, all_bins, edgecolor='tab:blue', histtype='step', linewidth=3, linestyle='dashed', hatch='\\')
 
-	ax0.hist([lirg_ratio, lirg_ratio_ulim], all_bins, color=['tab:cyan', 'tab:cyan'], edgecolor=['darkcyan', 'darkcyan'], alpha=0.25, label='LIRG (Gao 04)', histtype='barstacked', hatch=hatches)
+	ax0.hist([lirg_ratio, lirg_ratio_ulim], all_bins, color=['tab:cyan', 'tab:cyan'], edgecolor=['darkcyan', 'darkcyan'], alpha=0.25, label='LIRGs (Gao 04)', histtype='barstacked', hatch=hatches)
 	ax0.hist([lirg_ratio, lirg_ratio_ulim], all_bins, color=['tab:cyan', 'tab:cyan'], histtype='step', stacked=True, linewidth=3, linestyle=linestyles)
 
 
 	#ax0.hist([gls_ratio,gls_ratio_ulim], all_bins, color=['tab:pink', 'k'], alpha=0.25, label='LIRG (GOALS)', histtype='bar', stacked=True, hatch=hatches)
-	ax0.hist([gls_ratio,gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], edgecolor=['purple', 'purple'], alpha=0.25, label='LIRG (GOALS)', histtype='barstacked', hatch=hatches)
+	ax0.hist([gls_ratio,gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], edgecolor=['purple', 'purple'], alpha=0.25, label='LIRGs (GOALS)', histtype='barstacked', hatch=hatches)
 	#ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], alpha=0.25, label='LIRG (GOALS)')
 	ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, edgecolor=['tab:pink', 'tab:pink'], histtype='step', stacked=True, linewidth=2, linestyle=linestyles)
 	#ax0.hist([gls_ratio, gls_ratio_ulim], all_bins, color=['tab:pink', 'tab:pink'], histtype='step', stacked=True, linewidth=3, linestyle=linestyles, hatch=hatches)
 	#ax0.hist(gls_ratio_ulim, all_bins, edgecolor='tab:pink', histtype='step', linewidth=3, linestyle='dashed', hatch='///')
 
 	
-	ax1.hist([psb_ratio, psb_ratio_ulim], all_bins, color=['tab:purple','tab:purple'], edgecolor=['purple','purple'], alpha=0.25, label='PSB', histtype='barstacked', hatch=hatches)
+	ax1.hist([psb_ratio, psb_ratio_ulim], all_bins, color=['tab:purple','tab:purple'], edgecolor=['purple','purple'], alpha=0.25, label='PSBs', histtype='barstacked', hatch=hatches)
 	ax1.hist([psb_ratio, psb_ratio_ulim], all_bins, edgecolor=['tab:purple','tab:purple'], histtype='step', stacked=True, linewidth=4, linestyle=linestyles)
 	#ax1.hist(psb_ratio_ulim, all_bins, edgecolor='tab:purple', histtype='step', linewidth=3, linestyle='dashed', hatch='//')
 
-	ax1.hist([etg_ratio, etg_ratio_ulim], all_bins, color=['tab:red','tab:red'], edgecolor=['maroon','maroon'], alpha=0.25, label='Early Type', histtype='barstacked', hatch=hatches)
+	ax1.hist([etg_ratio, etg_ratio_ulim], all_bins, color=['tab:red','tab:red'], edgecolor=['maroon','maroon'], alpha=0.25, label='ATLAS3D ETGs', histtype='barstacked', hatch=hatches)
 	ax1.hist([etg_ratio, etg_ratio_ulim], all_bins, edgecolor=['tab:red','tab:red'], histtype='step', stacked=True, linewidth=2, linestyle=linestyles)
 	#ax1.hist(etg_ratio_ulim, all_bins, edgecolor='tab:red', histtype='step', linewidth=3, linestyle='dashed', hatch='/')
 	
@@ -477,6 +523,7 @@ def HCN_12CO_ratio_histogram():
 
 	print(n1266_ratio_out)
 	print(n1266_ratio_sys)
+	print(n1266_ratio)
 
 	ax1.set_xlabel(r'HCN/$^{12}$CO flux ratio', fontsize=16)
 	ax0.set_ylabel('Number', fontsize=16)
@@ -521,7 +568,7 @@ def HCN_LIR_plot():
 
 
 #HCN_LIR_plot()
-#CO_ratio_HCN_plot()
+CO_ratio_HCN_plot()
 HCN_12CO_ratio_histogram()
 
 
