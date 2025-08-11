@@ -844,7 +844,7 @@ def plot_twocomp_upperlim(snr=88):
 	plt.axvline(0.02, linestyle='dashed', color='k')
 	plt.axhline(0.00488, linestyle='dashed', color='k') #measured amplitude ratio for 13CO(2-1)
 
-	plt.savefig(f'../plots/simulated_amp_recovered_snr{snr}.pdf')
+	plt.savefig(f'../plots/simulated_amp_recovered_snr{snr}.png')
 
 
 
@@ -1016,7 +1016,7 @@ def measure_fluxes_all(robust='0.5', name='', cont_fit_type='fit', rebin_default
 
 
 #twocomp_upperlimit(snr=88)
-#plot_twocomp_upperlim(snr=88)
+plot_twocomp_upperlim(snr=88)
 
 #measure_fluxes(constrain=False, robust='2')
 #measure_fluxes(constrain=True, robust='2')
